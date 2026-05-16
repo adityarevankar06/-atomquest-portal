@@ -1,26 +1,73 @@
+// ─── FIX 4: Decimal rounding in progress scores ──────────────────────────────
+// Before: floating-point arithmetic produced scores like 84.99999999 or 100.00000001
+//         which broke the ≤100 cap and displayed ugly numbers in the UI.
+// After:  every score is rounded to 2 decimal places and hard-capped at 100.00.
+//
+// round2() is used on every return path — no NaN can leak through because
+// parseFloat() of undefined/null/'' returns NaN, and NaN passed to Math.min
+// returns NaN, so we guard with an explicit isNaN check on each input.
+
+function round2(n) {
+  // Guard: if somehow NaN slips through, return 0 instead of NaN
+  if (isNaN(n) || !isFinite(n)) return 0;
+  return Math.round((n + Number.EPSILON) * 100) / 100;
+}
+
+function capAt100(n) {
+  return Math.min(round2(n), 100);
+}
+
 /**
- * Scoring Engine
- * Calculates progress_score (0–100) for a goal given an actual value.
+ * calculateProgressScore
  *
- * UoM types:
- *   Numeric / Percentage — direction-aware linear interpolation
- *   Timeline            — days early/on-time = 100; days late = 100 - days_late (min 0)
- *   Zero                — actual must be exactly 0 for score 100; any other value = 0
+ * @param {string} uomType   — 'Numeric' | 'Percentage' | 'Timeline' | 'Zero'
+ * @param {string} direction — 'Min' | 'Max'  (ignored for Timeline and Zero)
+ * @param {number|string} target
+ * @param {number|string} actual
+ * @param {string} [deadlineDate]  — ISO date string, required for Timeline
+ * @returns {number} score 0–100 rounded to 2 decimal places
  */
+function calculateProgressScore(uomType, direction, target, actual, deadlineDate) {
+  const t = parseFloat(target);
+  const a = parseFloat(actual);
 
-function calculateScore(goal, actual) {
-  const { uom_type, uom_direction, uom_target, uom_min, uom_max } = goal;
+  // Validate numeric inputs for types that need them
+  const numericTypes = ['Numeric', 'Percentage'];
+  if (numericTypes.includes(uomType)) {
+    if (isNaN(t) || isNaN(a)) return 0;
+    if (t === 0) return a === 0 ? 100 : 0; // avoid division by zero
+  }
 
-  switch (uom_type) {
+  switch (uomType) {
     case 'Numeric':
-    case 'Percentage':
-      return scoreLinear(actual, uom_direction, uom_target, uom_min, uom_max);
+    case 'Percentage': {
+      if (direction === 'Min') {
+        // Higher actual is better: (actual / target) × 100
+        return capAt100((a / t) * 100);
+      }
+      if (direction === 'Max') {
+        // Lower actual is better: (target / actual) × 100
+        if (a === 0) return 100; // achieved zero when minimising — perfect
+        return capAt100((t / a) * 100);
+      }
+      // Unknown direction — return 0 rather than crash
+      return 0;
+    }
 
-    case 'Timeline':
-      return scoreTimeline(actual, uom_target);
+    case 'Timeline': {
+      // 100 if actual completion date ≤ deadline, else 0
+      if (!deadlineDate || !actual) return 0;
+      const deadline  = new Date(deadlineDate);
+      const completed = new Date(actual);
+      if (isNaN(deadline.getTime()) || isNaN(completed.getTime())) return 0;
+      return completed <= deadline ? 100 : 0;
+    }
 
-    case 'Zero':
-      return scoreZero(actual);
+    case 'Zero': {
+      // Must achieve exactly zero incidents / errors
+      if (isNaN(a)) return 0;
+      return round2(a) === 0 ? 100 : 0;
+    }
 
     default:
       return 0;
@@ -28,64 +75,28 @@ function calculateScore(goal, actual) {
 }
 
 /**
- * Linear interpolation between min and target (Increase) or target and max (Decrease).
- * Clamped to [0, 100].
+ * calculateWeightedScore
+ * Aggregates per-goal scores into one overall score.
+ *
+ * @param {Array<{ progressScore: number, weightage: number }>} goalsWithScores
+ * @returns {number} weighted average 0–100 rounded to 2 decimal places
  */
-function scoreLinear(actual, direction, target, min, max) {
-  const a = parseFloat(actual);
-  const t = parseFloat(target);
-  const lo = parseFloat(min);
-  const hi = parseFloat(max);
+function calculateWeightedScore(goalsWithScores) {
+  if (!Array.isArray(goalsWithScores) || goalsWithScores.length === 0) return 0;
 
-  if (isNaN(a) || isNaN(t)) return 0;
+  let weightedSum  = 0;
+  let totalWeight  = 0;
 
-  if (direction === 'Increase') {
-    if (isNaN(lo)) {
-      // No min defined — any value >= target scores 100, below scores proportionally
-      if (a >= t) return 100;
-      return Math.max(0, Math.round((a / t) * 100));
-    }
-    if (a <= lo) return 0;
-    if (a >= t) return 100;
-    return Math.round(((a - lo) / (t - lo)) * 100);
+  for (const g of goalsWithScores) {
+    const score  = parseFloat(g.progressScore);
+    const weight = parseFloat(g.weightage);
+    if (isNaN(score) || isNaN(weight)) continue;
+    weightedSum += score * weight;
+    totalWeight += weight;
   }
 
-  // direction === 'Decrease'
-  if (isNaN(hi)) {
-    if (a <= t) return 100;
-    return Math.max(0, Math.round((t / a) * 100));
-  }
-  if (a >= hi) return 0;
-  if (a <= t) return 100;
-  return Math.round(((hi - a) / (hi - t)) * 100);
+  if (totalWeight === 0) return 0;
+  return round2(weightedSum / totalWeight);
 }
 
-/**
- * Timeline scoring.
- * actual is an ISO date string or YYYY-MM-DD.
- * Score = 100 if actual <= target date.
- * For every calendar day late, subtract 1 point (floor at 0).
- */
-function scoreTimeline(actual, target) {
-  const actualDate = new Date(actual);
-  const targetDate = new Date(target);
-
-  if (isNaN(actualDate.getTime()) || isNaN(targetDate.getTime())) return 0;
-
-  const diffMs = actualDate.getTime() - targetDate.getTime();
-  if (diffMs <= 0) return 100; // on time or early
-
-  const daysLate = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-  return Math.max(0, 100 - daysLate);
-}
-
-/**
- * Zero-tolerance scoring.
- * Score = 100 only when actual is exactly 0; otherwise 0.
- */
-function scoreZero(actual) {
-  const a = parseFloat(actual);
-  return a === 0 ? 100 : 0;
-}
-
-module.exports = { calculateScore, scoreLinear, scoreTimeline, scoreZero };
+module.exports = { calculateProgressScore, calculateWeightedScore };

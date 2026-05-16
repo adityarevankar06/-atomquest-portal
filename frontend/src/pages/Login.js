@@ -1,105 +1,103 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { authAPI } from '../services/api';
-import { useAuth } from '../context/AuthContext';
+import React, { useState, useContext } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { AuthContext } from '../context/AuthContext';
+import { login } from '../services/api';
 import './Login.css';
 
-const DEMO_USERS = [
-    { email: 'alice@acme.com', role: 'Employee', name: 'Alice Johnson',  avatar: 'AJ' },
-    { email: 'bob@acme.com',   role: 'Manager',  name: 'Bob Manager',    avatar: 'BM' },
-    { email: 'charlie@acme.com', role: 'Admin',  name: 'Charlie Admin',  avatar: 'CA' }
+const USERS = [
+  { label: 'Alice Johnson — Employee', email: 'alice@acme.com', role: 'Employee' },
+  { label: 'Bob Manager — Manager',   email: 'bob@acme.com',   role: 'Manager'  },
+  { label: 'Charlie Admin — Admin',   email: 'charlie@acme.com', role: 'Admin'  },
 ];
 
-const ROLE_COLORS = {
-    Employee: { bg: '#e8f5e9', border: '#4caf50', badge: '#4caf50' },
-    Manager:  { bg: '#e3f2fd', border: '#2196f3', badge: '#2196f3' },
-    Admin:    { bg: '#fce4ec', border: '#e91e63', badge: '#e91e63' }
+const Login = () => {
+  const [selectedIndex, setSelectedIndex] = useState('');
+  const [loading, setLoading]             = useState(false);
+  const [error, setError]                 = useState('');
+
+  const { setAuth }  = useContext(AuthContext);
+  const navigate     = useNavigate();
+  const location     = useLocation();
+
+  // ── FIX 2 (frontend): Show session-expired banner when redirected back ──────
+  const params  = new URLSearchParams(location.search);
+  const reason  = params.get('reason');
+  const returnTo = params.get('returnTo') || '/dashboard';
+
+  const handleLogin = async () => {
+    if (selectedIndex === '') {
+      setError('Please select a user.');
+      return;
+    }
+    setLoading(true);
+    setError('');
+
+    const { email, role } = USERS[selectedIndex];
+
+    try {
+      const res = await login(email, role);
+      const { token, user } = res.data;
+
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(user));
+      setAuth({ token, user });
+
+      // Return to the page the user was on before the token expired
+      navigate(decodeURIComponent(returnTo), { replace: true });
+    } catch (err) {
+      setError(err.response?.data?.error || 'Login failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="login-wrapper">
+      <div className="login-card">
+        <h1 className="login-title">⚛ AtomQuest Portal</h1>
+        <p className="login-subtitle">Goal Setting & Tracking</p>
+
+        {/* ── FIX 2: session-expired notice ── */}
+        {reason === 'expired' && (
+          <div className="login-banner login-banner--warn" role="alert">
+            Your session has expired. Please log in again.
+          </div>
+        )}
+
+        {error && (
+          <div className="login-banner login-banner--error" role="alert">
+            {error}
+          </div>
+        )}
+
+        <label className="login-label" htmlFor="user-select">
+          Select user
+        </label>
+        <select
+          id="user-select"
+          className="login-select"
+          value={selectedIndex}
+          onChange={(e) => setSelectedIndex(e.target.value)}
+        >
+          <option value="">— Choose a demo account —</option>
+          {USERS.map((u, i) => (
+            <option key={u.email} value={i}>
+              {u.label}
+            </option>
+          ))}
+        </select>
+
+        <button
+          className="login-btn"
+          onClick={handleLogin}
+          disabled={loading}
+          type="button"
+        >
+          {loading ? 'Signing in…' : 'Sign In'}
+        </button>
+      </div>
+    </div>
+  );
 };
 
-export default function Login() {
-    const { user, login } = useAuth();
-    const navigate        = useNavigate();
-
-    // If already logged in, redirect immediately
-    if (user) {
-        navigate('/dashboard', { replace: true });
-        return null;
-    }
-
-    const [selectedEmail, setSelectedEmail] = useState('alice@acme.com');
-    const [error, setError]   = useState('');
-    const [loading, setLoading] = useState(false);
-
-    const selectedUser = DEMO_USERS.find(u => u.email === selectedEmail);
-
-    const handleLogin = async (e) => {
-        e.preventDefault();
-        setLoading(true);
-        setError('');
-        try {
-            const res = await authAPI.login(selectedUser.email, selectedUser.role);
-            login(res.data.user, res.data.token);
-            navigate('/dashboard');
-        } catch (err) {
-            setError(err.response?.data?.error || 'Login failed. Please try again.');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    return (
-        <div className="login-container">
-            <div className="login-box">
-
-                {/* Header */}
-                <div className="login-header">
-                    <div className="login-logo">🎯</div>
-                    <h1>AtomQuest Portal</h1>
-                    <p className="subtitle">Goal Setting &amp; Tracking System</p>
-                </div>
-
-                <form onSubmit={handleLogin}>
-                    {/* User selection cards */}
-                    <div className="form-group">
-                        <label>Select User</label>
-                        <div className="user-cards">
-                            {DEMO_USERS.map(u => {
-                                const colors  = ROLE_COLORS[u.role];
-                                const active  = selectedEmail === u.email;
-                                return (
-                                    <div
-                                        key={u.email}
-                                        className={`user-card ${active ? 'selected' : ''}`}
-                                        style={active ? { borderColor: colors.border, backgroundColor: colors.bg } : {}}
-                                        onClick={() => setSelectedEmail(u.email)}
-                                    >
-                                        <div className="user-avatar" style={{ backgroundColor: colors.badge }}>
-                                            {u.avatar}
-                                        </div>
-                                        <div className="user-card-info">
-                                            <div className="user-card-name">{u.name}</div>
-                                            <div className="user-card-email">{u.email}</div>
-                                        </div>
-                                        <span className="role-badge" style={{ backgroundColor: colors.badge }}>
-                                            {u.role}
-                                        </span>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-
-                    {error && <div className="error-message">⚠️ {error}</div>}
-
-                    <button type="submit" disabled={loading} className="btn-login">
-                        {loading
-                            ? <span className="btn-loading"><span className="spinner" /> Logging in...</span>
-                            : `Login as ${selectedUser?.name}`}
-                    </button>
-                </form>
-
-                <p className="no-password-note">No password required — demo mode</p>
-            </div>
-        </div>
-    );
-}
+export default Login;
