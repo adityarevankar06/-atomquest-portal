@@ -1,28 +1,28 @@
 import React, { useContext, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
-import GoalCreation    from './GoalCreation';
+import GoalCreation     from './GoalCreation';
 import ManagerDashboard from './ManagerDashboard';
-import CheckIn         from './CheckIn';
-import ManagerCheckIn  from './ManagerCheckIn';
-import AdminDashboard  from './AdminDashboard';
+import CheckIn          from './CheckIn';
+import ManagerCheckIn   from './ManagerCheckIn';
+import AdminDashboard   from './AdminDashboard';
 import './Dashboard.css';
 
 const TABS = {
   employee: [
-    { key: 'goals',   label: '📋 My Goals'  },
-    { key: 'checkin', label: '✏️ Check-in'   },
+    { key: 'goals',   label: 'My Goals',        icon: '📋' },
+    { key: 'checkin', label: 'Check-in',         icon: '✏️' },
   ],
   manager: [
-    { key: 'team',        label: '👥 Team Goals'       },
-    { key: 'teamcheckin', label: '📊 Check-in Review'  },
+    { key: 'team',        label: 'Team Goals',      icon: '👥' },
+    { key: 'teamcheckin', label: 'Check-in Review',  icon: '📊' },
   ],
   admin: [
-    { key: 'goals',       label: '📋 All Goals'         },
-    { key: 'team',        label: '👥 Team Goals'         },
-    { key: 'checkin',     label: '✏️ Check-in'           },
-    { key: 'teamcheckin', label: '📊 Check-in Review'   },
-    { key: 'admin',       label: '🛡 Admin Dashboard'   },
+    { key: 'goals',       label: 'All Goals',        icon: '📋' },
+    { key: 'team',        label: 'Team Goals',        icon: '👥' },
+    { key: 'checkin',     label: 'Check-in',          icon: '✏️' },
+    { key: 'teamcheckin', label: 'Check-in Review',   icon: '📊' },
+    { key: 'admin',       label: 'Admin Dashboard',   icon: '🛡️' },
   ],
 };
 
@@ -56,44 +56,49 @@ export default function Dashboard() {
     }
   }
 
+  const initial = user?.name?.charAt(0).toUpperCase() || '?';
+
   return (
     <div className="dashboard-wrapper">
-      {/* ── Top nav ── */}
-      <nav className="dashboard-nav">
-        <div className="nav-brand">
-          <span className="nav-logo">⚡</span>
-          <span className="nav-title">AtomQuest</span>
+      {/* ── Sidebar ── */}
+      <aside className="sidebar">
+        <div className="sidebar-brand">
+          <div className="sidebar-brand-icon">⚡</div>
+          <div>
+            <div className="sidebar-brand-name">AtomQuest</div>
+            <div className="sidebar-brand-sub">Goal Tracking</div>
+          </div>
         </div>
 
-        <div className="nav-tabs">
+        <div className="sidebar-user">
+          <div className="user-avatar">{initial}</div>
+          <div className="user-info">
+            <div className="user-name">{user?.name}</div>
+            <span className={`user-role-badge role-${role}`}>{role}</span>
+          </div>
+        </div>
+
+        <nav className="sidebar-nav">
           {tabs.map(tab => (
             <button
               key={tab.key}
               className={`nav-tab ${activeTab === tab.key ? 'nav-tab-active' : ''}`}
               onClick={() => setActiveTab(tab.key)}
             >
+              <span className="nav-tab-icon">{tab.icon}</span>
               {tab.label}
             </button>
           ))}
-        </div>
+        </nav>
 
-        <div className="nav-user">
-          <div className="user-chip">
-            <div className="user-avatar">
-              {user?.name?.charAt(0).toUpperCase() || '?'}
-            </div>
-            <div className="user-info">
-              <span className="user-name">{user?.name}</span>
-              <span className={`user-role-badge role-${role}`}>{role}</span>
-            </div>
-          </div>
+        <div className="sidebar-footer">
           <button className="btn-logout" onClick={handleLogout}>
-            Logout
+            ⬅ Logout
           </button>
         </div>
-      </nav>
+      </aside>
 
-      {/* ── Content ── */}
+      {/* ── Main content ── */}
       <main className="dashboard-content">
         {renderTab()}
       </main>

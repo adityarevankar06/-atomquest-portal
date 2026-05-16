@@ -5,9 +5,9 @@ import { login } from '../services/api';
 import './Login.css';
 
 const USERS = [
-  { label: 'Alice Johnson — Employee', email: 'alice@acme.com', role: 'Employee' },
-  { label: 'Bob Manager — Manager',   email: 'bob@acme.com',   role: 'Manager'  },
-  { label: 'Charlie Admin — Admin',   email: 'charlie@acme.com', role: 'Admin'  },
+  { label: 'Alice Johnson', email: 'alice@acme.com', role: 'Employee', avatarClass: 'av-employee', badgeClass: 'badge-employee' },
+  { label: 'Bob Manager',   email: 'bob@acme.com',   role: 'Manager',  avatarClass: 'av-manager',  badgeClass: 'badge-manager'  },
+  { label: 'Charlie Admin', email: 'charlie@acme.com', role: 'Admin',  avatarClass: 'av-admin',    badgeClass: 'badge-admin'    },
 ];
 
 const Login = () => {
@@ -16,33 +16,23 @@ const Login = () => {
   const [error, setError]                 = useState('');
 
   const { login: setAuth } = useContext(AuthContext);
-  const navigate     = useNavigate();
-  const location     = useLocation();
+  const navigate           = useNavigate();
+  const location           = useLocation();
 
-  // ── FIX 2 (frontend): Show session-expired banner when redirected back ──────
-  const params  = new URLSearchParams(location.search);
-  const reason  = params.get('reason');
+  const params   = new URLSearchParams(location.search);
+  const reason   = params.get('reason');
   const returnTo = params.get('returnTo') || '/dashboard';
 
   const handleLogin = async () => {
-    if (selectedIndex === '') {
-      setError('Please select a user.');
-      return;
-    }
-    setLoading(true);
-    setError('');
-
+    if (selectedIndex === '') { setError('Please select a user.'); return; }
+    setLoading(true); setError('');
     const { email, role } = USERS[selectedIndex];
-
     try {
       const res = await login(email, role);
       const { token, user } = res.data;
-
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(user));
       setAuth(user, token);
-
-      // Return to the page the user was on before the token expired
       navigate(decodeURIComponent(returnTo), { replace: true });
     } catch (err) {
       setError(err.response?.data?.error || 'Login failed. Please try again.');
@@ -53,48 +43,65 @@ const Login = () => {
 
   return (
     <div className="login-wrapper">
-      <div className="login-card">
-        <h1 className="login-title">⚛ AtomQuest Portal</h1>
-        <p className="login-subtitle">Goal Setting & Tracking</p>
+      {/* ── Left brand panel ── */}
+      <div className="login-brand">
+        <div className="login-brand-logo">
+          <div className="login-brand-icon">⚡</div>
+          <div className="login-brand-name">AtomQuest</div>
+        </div>
+        <h1>Track goals.<br /><span>Drive results.</span></h1>
+        <p>A unified platform for goal setting, approval workflows, and performance check-ins across your organisation.</p>
+        <div className="login-features">
+          <div className="login-feature"><div className="login-feature-dot" />Quarterly goal setting with weightage tracking</div>
+          <div className="login-feature"><div className="login-feature-dot" />Manager approval and rejection workflows</div>
+          <div className="login-feature"><div className="login-feature-dot" />Real-time progress check-ins and scoring</div>
+          <div className="login-feature"><div className="login-feature-dot" />Admin dashboard with CSV export</div>
+        </div>
+      </div>
 
-        {/* ── FIX 2: session-expired notice ── */}
+      {/* ── Right login card ── */}
+      <div className="login-card">
+        <div className="login-card-title">Sign in to continue</div>
+        <div className="login-card-sub">Select your demo account below</div>
+
         {reason === 'expired' && (
-          <div className="login-banner login-banner--warn" role="alert">
+          <div className="login-banner login-banner--warn">
             Your session has expired. Please log in again.
           </div>
         )}
 
         {error && (
-          <div className="login-banner login-banner--error" role="alert">
-            {error}
-          </div>
+          <div className="login-banner login-banner--error">{error}</div>
         )}
 
-        <label className="login-label" htmlFor="user-select">
-          Select user
-        </label>
-        <select
-          id="user-select"
-          className="login-select"
-          value={selectedIndex}
-          onChange={(e) => setSelectedIndex(e.target.value)}
-        >
-          <option value="">— Choose a demo account —</option>
+        <div className="user-cards">
           {USERS.map((u, i) => (
-            <option key={u.email} value={i}>
-              {u.label}
-            </option>
+            <div
+              key={u.email}
+              className={`user-card ${selectedIndex === i ? 'selected' : ''}`}
+              onClick={() => setSelectedIndex(i)}
+            >
+              <div className={`user-avatar ${u.avatarClass}`}>
+                {u.label.charAt(0)}
+              </div>
+              <div className="user-card-info">
+                <div className="user-card-name">{u.label}</div>
+                <div className="user-card-email">{u.email}</div>
+              </div>
+              <span className={`role-badge ${u.badgeClass}`}>{u.role}</span>
+            </div>
           ))}
-        </select>
+        </div>
 
         <button
           className="login-btn"
           onClick={handleLogin}
-          disabled={loading}
-          type="button"
+          disabled={loading || selectedIndex === ''}
         >
-          {loading ? 'Signing in…' : 'Sign In'}
+          {loading ? 'Signing in…' : 'Sign In →'}
         </button>
+
+        <p className="login-note">No password required for demo accounts</p>
       </div>
     </div>
   );
