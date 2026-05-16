@@ -1,6 +1,6 @@
 import React, { createContext, useState, useContext } from 'react';
 
-const AuthContext = createContext();
+export const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
     // Rehydrate user from localStorage so page refresh keeps the session alive
