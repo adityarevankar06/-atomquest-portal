@@ -1,169 +1,153 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import GoalCreation    from './GoalCreation';
+import ManagerDashboard from './ManagerDashboard';
 import './Dashboard.css';
 
 export default function Dashboard() {
     const { user, logout } = useAuth();
-    const navigate = useNavigate();
+    const navigate         = useNavigate();
     const [activeTab, setActiveTab] = useState('home');
 
     useEffect(() => {
-        if (!user) {
-            navigate('/login');
-        }
+        if (!user) navigate('/login');
     }, [user, navigate]);
 
-    const handleLogout = () => {
-        logout();
-        navigate('/login');
-    };
+    // Set sensible default tab per role
+    useEffect(() => {
+        if (!user) return;
+        if (user.role === 'Employee') setActiveTab('goals');
+        if (user.role === 'Manager')  setActiveTab('team-goals');
+        if (user.role === 'Admin')    setActiveTab('home');
+    }, [user]);
 
-    if (!user) {
-        return <div className="loading">Loading...</div>;
-    }
+    const handleLogout = () => { logout(); navigate('/login'); };
+
+    if (!user) return <div className="loading">Loading…</div>;
 
     return (
         <div className="dashboard">
+
+            {/* ── Navbar ──────────────────────────────────────── */}
             <nav className="navbar">
                 <div className="navbar-left">
-                    <h1>🎯 AtomQuest Portal</h1>
+                    <span className="navbar-logo">🎯</span>
+                    <h1>AtomQuest Portal</h1>
                 </div>
                 <div className="navbar-right">
-                    <span className="user-info">
-                        {user.name} ({user.role})
-                    </span>
-                    <button onClick={handleLogout} className="btn-logout">
-                        Logout
-                    </button>
+                    <div className="user-chip">
+                        <div className="user-chip-avatar">{user.name.charAt(0)}</div>
+                        <div className="user-chip-info">
+                            <span className="user-chip-name">{user.name}</span>
+                            <span className="user-chip-role">{user.role}</span>
+                        </div>
+                    </div>
+                    <button onClick={handleLogout} className="btn-logout">Logout</button>
                 </div>
             </nav>
 
             <div className="dashboard-container">
+
+                {/* ── Sidebar ─────────────────────────────────── */}
                 <aside className="sidebar">
                     <nav className="nav-menu">
-                        <button
-                            className={`nav-item ${activeTab === 'home' ? 'active' : ''}`}
-                            onClick={() => setActiveTab('home')}
-                        >
-                            📊 Dashboard
-                        </button>
 
-                        {user.role === 'Employee' && (
-                            <>
-                                <button
-                                    className={`nav-item ${activeTab === 'goals' ? 'active' : ''}`}
-                                    onClick={() => setActiveTab('goals')}
-                                >
-                                    🎯 My Goals
-                                </button>
-                                <button
-                                    className={`nav-item ${activeTab === 'checkin' ? 'active' : ''}`}
-                                    onClick={() => setActiveTab('checkin')}
-                                >
-                                    ✅ Check-in
-                                </button>
-                            </>
-                        )}
+                        {/* Employee nav */}
+                        {user.role === 'Employee' && (<>
+                            <NavItem id="goals"   active={activeTab} label="🎯 My Goals"         onClick={setActiveTab} />
+                            <NavItem id="checkin" active={activeTab} label="✅ Quarterly Check-in" onClick={setActiveTab} />
+                        </>)}
 
-                        {(user.role === 'Manager' || user.role === 'Admin') && (
-                            <>
-                                <button
-                                    className={`nav-item ${activeTab === 'team-goals' ? 'active' : ''}`}
-                                    onClick={() => setActiveTab('team-goals')}
-                                >
-                                    👥 Team Goals
-                                </button>
-                                <button
-                                    className={`nav-item ${activeTab === 'manager-checkin' ? 'active' : ''}`}
-                                    onClick={() => setActiveTab('manager-checkin')}
-                                >
-                                    📝 Conduct Check-in
-                                </button>
-                            </>
-                        )}
+                        {/* Manager nav */}
+                        {user.role === 'Manager' && (<>
+                            <NavItem id="team-goals"      active={activeTab} label="👥 Team Goals"      onClick={setActiveTab} />
+                            <NavItem id="manager-checkin" active={activeTab} label="📝 Conduct Check-in" onClick={setActiveTab} />
+                        </>)}
 
-                        {user.role === 'Admin' && (
-                            <>
-                                <button
-                                    className={`nav-item ${activeTab === 'admin-dashboard' ? 'active' : ''}`}
-                                    onClick={() => setActiveTab('admin-dashboard')}
-                                >
-                                    ⚙️ Admin Dashboard
-                                </button>
-                                <button
-                                    className={`nav-item ${activeTab === 'reports' ? 'active' : ''}`}
-                                    onClick={() => setActiveTab('reports')}
-                                >
-                                    📈 Reports
-                                </button>
-                            </>
-                        )}
+                        {/* Admin nav */}
+                        {user.role === 'Admin' && (<>
+                            <NavItem id="home"            active={activeTab} label="📊 Dashboard"        onClick={setActiveTab} />
+                            <NavItem id="team-goals"      active={activeTab} label="👥 All Goals"         onClick={setActiveTab} />
+                            <NavItem id="admin-dashboard" active={activeTab} label="⚙️ Admin Dashboard"  onClick={setActiveTab} />
+                            <NavItem id="reports"         active={activeTab} label="📈 Reports"           onClick={setActiveTab} />
+                        </>)}
                     </nav>
                 </aside>
 
+                {/* ── Main content ─────────────────────────────── */}
                 <main className="main-content">
+
+                    {/* ── My Goals (Employee) ───────────────────── */}
+                    {activeTab === 'goals' && (
+                        <div className="content-section">
+                            <GoalCreation />
+                        </div>
+                    )}
+
+                    {/* ── Team Goals (Manager / Admin) ──────────── */}
+                    {activeTab === 'team-goals' && (
+                        <div className="content-section">
+                            <ManagerDashboard />
+                        </div>
+                    )}
+
+                    {/* ── Home (Admin) ──────────────────────────── */}
                     {activeTab === 'home' && (
                         <div className="content-section">
                             <h2>Welcome, {user.name}!</h2>
-                            <p>You are logged in as <strong>{user.role}</strong></p>
+                            <p>You are logged in as <strong>{user.role}</strong>.</p>
                             <div className="welcome-message">
-                                {user.role === 'Employee' && (
-                                    <p>📌 Start by creating your quarterly goals, then track your achievements.</p>
-                                )}
-                                {user.role === 'Manager' && (
-                                    <p>📌 Approve team goals and conduct quarterly check-ins.</p>
-                                )}
-                                {user.role === 'Admin' && (
-                                    <p>📌 Monitor overall completion status and audit logs.</p>
-                                )}
+                                <p>📌 Use the sidebar to navigate. Monitor overall completion status and audit logs.</p>
                             </div>
                         </div>
                     )}
 
-                    {activeTab === 'goals' && (
-                        <div className="content-section">
-                            <h2>My Goals</h2>
-                            <p>Goal creation feature coming soon...</p>
-                        </div>
-                    )}
-
+                    {/* ── Placeholders for Phase 2 features ────── */}
                     {activeTab === 'checkin' && (
-                        <div className="content-section">
+                        <div className="content-section coming-soon">
+                            <div className="cs-icon">📅</div>
                             <h2>Quarterly Check-in</h2>
-                            <p>Check-in feature coming soon...</p>
-                        </div>
-                    )}
-
-                    {activeTab === 'team-goals' && (
-                        <div className="content-section">
-                            <h2>Team Goals</h2>
-                            <p>Team goals management coming soon...</p>
+                            <p>This feature is coming in Phase 2.</p>
                         </div>
                     )}
 
                     {activeTab === 'manager-checkin' && (
-                        <div className="content-section">
+                        <div className="content-section coming-soon">
+                            <div className="cs-icon">📝</div>
                             <h2>Conduct Check-in</h2>
-                            <p>Manager check-in feature coming soon...</p>
+                            <p>This feature is coming in Phase 2.</p>
                         </div>
                     )}
 
                     {activeTab === 'admin-dashboard' && (
-                        <div className="content-section">
+                        <div className="content-section coming-soon">
+                            <div className="cs-icon">⚙️</div>
                             <h2>Admin Dashboard</h2>
-                            <p>Admin dashboard coming soon...</p>
+                            <p>This feature is coming in Phase 2.</p>
                         </div>
                     )}
 
                     {activeTab === 'reports' && (
-                        <div className="content-section">
+                        <div className="content-section coming-soon">
+                            <div className="cs-icon">📈</div>
                             <h2>Reports</h2>
-                            <p>Reports feature coming soon...</p>
+                            <p>This feature is coming in Phase 2.</p>
                         </div>
                     )}
                 </main>
             </div>
         </div>
+    );
+}
+
+// Small helper to keep the sidebar DRY
+function NavItem({ id, active, label, onClick }) {
+    return (
+        <button
+            className={`nav-item ${active === id ? 'active' : ''}`}
+            onClick={() => onClick(id)}>
+            {label}
+        </button>
     );
 }

@@ -164,3 +164,48 @@
         padding: 20px;
     }
 }
+
+/* ── Navbar additions ─────────────────────────────────────────── */
+.navbar-logo { font-size: 22px; margin-right: 6px; }
+
+.user-chip {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #f7f8fa;
+    border: 1px solid #e5e5e5;
+    border-radius: 24px;
+    padding: 5px 14px 5px 6px;
+}
+
+.user-chip-avatar {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.user-chip-info {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.2;
+}
+
+.user-chip-name { font-size: 13px; font-weight: 600; color: #222; }
+.user-chip-role { font-size: 11px; color: #888; }
+
+/* ── Coming soon placeholder ──────────────────────────────────── */
+.coming-soon {
+    text-align: center;
+    padding: 60px 30px !important;
+}
+
+.cs-icon { font-size: 48px; margin-bottom: 16px; }
+.coming-soon h2 { color: #555; margin-bottom: 8px; }
+.coming-soon p  { color: #aaa; font-size: 14px; }
