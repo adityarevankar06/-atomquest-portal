@@ -365,3 +365,4 @@ router.delete('/:goalId', authMiddleware, (req, res) => {
 });
 
 module.exports = router;
+module.exports.goalsDB = goalsDB;
