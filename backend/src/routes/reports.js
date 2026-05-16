@@ -25,7 +25,7 @@ router.get('/completion-status', authMiddleware, (req, res) => {
   // Per-employee breakdown for admin detail view
   const byEmployee = {};
   allGoals.forEach(g => {
-    const emp = USERS.find(u => u.id === g.employee_id);
+    const emp = Object.values(USERS).find(u => u.id === g.employee_id);
     const empName = emp ? emp.name : `Employee ${g.employee_id}`;
     if (!byEmployee[empName]) {
       byEmployee[empName] = { total: 0, approved: 0, checkin_done: 0 };
@@ -50,7 +50,7 @@ router.get('/achievements-export', authMiddleware, (req, res) => {
   const allGoals = Object.values(goalsDB);
 
   const rows = allGoals.map(g => {
-    const emp = USERS.find(u => u.id === g.employee_id);
+    const emp = Object.values(USERS).find(u => u.id === g.employee_id);
     const ach = achievementsDB[g.id] || {};
 
     return {
