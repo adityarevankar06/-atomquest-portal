@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { authenticate, authorize } = require('../middleware/auth');
+const authMiddleware = require('../middleware/auth');
 const { calculateScore } = require('../utils/scoringEngine');
 const { goalsDB, getGoalById } = require('./goals');
 
@@ -9,7 +9,7 @@ const achievementsDB = {};
 
 // ─── GET /achievements ───────────────────────────────────────────────────────
 // Employee: returns own approved goals merged with their achievement data
-router.get('/', authenticate, authorize('employee', 'admin'), (req, res) => {
+router.get('/', authMiddleware, (req, res) => {
   const empId = req.user.id;
 
   const myGoals = Object.values(goalsDB).filter(
@@ -27,7 +27,7 @@ router.get('/', authenticate, authorize('employee', 'admin'), (req, res) => {
 // ─── GET /achievements/team ──────────────────────────────────────────────────
 // Manager: returns all team's approved goals with achievement data
 // MUST come before /:goalId
-router.get('/team', authenticate, authorize('manager', 'admin'), (req, res) => {
+router.get('/team', authMiddleware, (req, res) => {
   const { USERS } = require('./auth');
   const managerId = req.user.id;
   const manager = USERS.find(u => u.id === managerId);
@@ -60,7 +60,7 @@ router.get('/team', authenticate, authorize('manager', 'admin'), (req, res) => {
 
 // ─── POST /achievements/:goalId ──────────────────────────────────────────────
 // Employee: submit or update actual value for a goal
-router.post('/:goalId', authenticate, authorize('employee', 'admin'), (req, res) => {
+router.post('/:goalId', authMiddleware, (req, res) => {
   const { goalId } = req.params;
   const { actual_value, employee_remarks } = req.body;
 
@@ -99,7 +99,7 @@ router.post('/:goalId', authenticate, authorize('employee', 'admin'), (req, res)
 // ─── POST /achievements/checkin/:goalId ─────────────────────────────────────
 // Manager: add a check-in comment to a goal's achievement record
 // MUST come before the /:goalId wildcard — registered later but named route wins
-router.post('/checkin/:goalId', authenticate, authorize('manager', 'admin'), (req, res) => {
+router.post('/checkin/:goalId', authMiddleware, (req, res) => {
   const { goalId } = req.params;
   const { comment } = req.body;
 

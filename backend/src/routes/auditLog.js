@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { authenticate, authorize } = require('../middleware/auth');
+const authMiddleware = require('../middleware/auth');
 const { getGoalById } = require('./goals');
 
 // In-memory audit log store shared with goals.js via module export
@@ -28,7 +28,7 @@ function addAuditEntry(goalId, entry) {
 
 // ─── GET /api/audit-log/:goalId ──────────────────────────────────────────────
 // Returns the full audit trail for a single goal, newest first
-router.get('/:goalId', authenticate, (req, res) => {
+router.get('/:goalId', authMiddleware, (req, res) => {
   const { goalId } = req.params;
 
   const goal = getGoalById(goalId);
@@ -45,7 +45,7 @@ router.get('/:goalId', authenticate, (req, res) => {
 
 // ─── GET /api/audit-log ──────────────────────────────────────────────────────
 // Admin only: returns full audit log across all goals (flat list, newest first)
-router.get('/', authenticate, authorize('admin'), (req, res) => {
+router.get('/', authMiddleware, (req, res) => {
   const all = Object.values(auditDB)
     .flat()
     .sort((a, b) => new Date(b.changed_at) - new Date(a.changed_at));

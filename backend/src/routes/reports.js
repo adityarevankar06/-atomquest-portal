@@ -1,13 +1,13 @@
 const express = require('express');
 const router = express.Router();
-const { authenticate, authorize } = require('../middleware/auth');
+const authMiddleware = require('../middleware/auth');
 const { goalsDB } = require('./goals');
 const { achievementsDB } = require('./achievements');
 const { USERS } = require('./auth');
 
 // ─── GET /api/reports/completion-status ─────────────────────────────────────
 // Admin/Manager: Returns counts for the dashboard metrics cards
-router.get('/completion-status', authenticate, authorize('manager', 'admin'), (req, res) => {
+router.get('/completion-status', authMiddleware, (req, res) => {
   const allGoals = Object.values(goalsDB);
 
   const total     = allGoals.length;
@@ -46,7 +46,7 @@ router.get('/completion-status', authenticate, authorize('manager', 'admin'), (r
 
 // ─── GET /api/reports/achievements-export ───────────────────────────────────
 // Admin/Manager: Returns CSV file of all goals + achievements
-router.get('/achievements-export', authenticate, authorize('manager', 'admin'), (req, res) => {
+router.get('/achievements-export', authMiddleware, (req, res) => {
   const allGoals = Object.values(goalsDB);
 
   const rows = allGoals.map(g => {
