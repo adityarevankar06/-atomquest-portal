@@ -1,31 +1,34 @@
 import React, { useContext, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
-import GoalCreation from './GoalCreation';
+import GoalCreation    from './GoalCreation';
 import ManagerDashboard from './ManagerDashboard';
-import CheckIn from './CheckIn';
-import ManagerCheckIn from './ManagerCheckIn';
+import CheckIn         from './CheckIn';
+import ManagerCheckIn  from './ManagerCheckIn';
+import AdminDashboard  from './AdminDashboard';
 import './Dashboard.css';
 
 const TABS = {
   employee: [
-    { key: 'goals',   label: '📋 My Goals' },
-    { key: 'checkin', label: '✏️ Check-in' },
+    { key: 'goals',   label: '📋 My Goals'  },
+    { key: 'checkin', label: '✏️ Check-in'   },
   ],
   manager: [
-    { key: 'team',         label: '👥 Team Goals' },
-    { key: 'teamcheckin',  label: '📊 Check-in Review' },
+    { key: 'team',        label: '👥 Team Goals'       },
+    { key: 'teamcheckin', label: '📊 Check-in Review'  },
   ],
   admin: [
-    { key: 'goals',        label: '📋 All Goals' },
-    { key: 'team',         label: '👥 Team Goals' },
-    { key: 'checkin',      label: '✏️ Check-in' },
-    { key: 'teamcheckin',  label: '📊 Check-in Review' },
+    { key: 'goals',       label: '📋 All Goals'         },
+    { key: 'team',        label: '👥 Team Goals'         },
+    { key: 'checkin',     label: '✏️ Check-in'           },
+    { key: 'teamcheckin', label: '📊 Check-in Review'   },
+    { key: 'admin',       label: '🛡 Admin Dashboard'   },
   ],
 };
 
 function getDefaultTab(role) {
   if (role === 'manager') return 'team';
+  if (role === 'admin')   return 'admin';
   return 'goals';
 }
 
@@ -44,16 +47,12 @@ export default function Dashboard() {
 
   function renderTab() {
     switch (activeTab) {
-      case 'goals':
-        return <GoalCreation />;
-      case 'team':
-        return <ManagerDashboard />;
-      case 'checkin':
-        return <CheckIn />;
-      case 'teamcheckin':
-        return <ManagerCheckIn />;
-      default:
-        return <div className="coming-soon">Coming soon…</div>;
+      case 'goals':       return <GoalCreation />;
+      case 'team':        return <ManagerDashboard />;
+      case 'checkin':     return <CheckIn />;
+      case 'teamcheckin': return <ManagerCheckIn />;
+      case 'admin':       return <AdminDashboard />;
+      default:            return <div className="coming-soon">Coming soon…</div>;
     }
   }
 

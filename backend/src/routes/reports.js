@@ -1,140 +1,93 @@
 const express = require('express');
-const { authMiddleware, adminMiddleware } = require('../middleware/auth');
 const router = express.Router();
+const { authenticate, authorize } = require('../middleware/auth');
+const { goalsDB } = require('./goals');
+const { achievementsDB } = require('./achievements');
+const { USERS } = require('./auth');
 
-// Mock data for reports
-let goalsDB = {};
-let achievementsDB = {};
-let auditLogsDB = {};
+// ─── GET /api/reports/completion-status ─────────────────────────────────────
+// Admin/Manager: Returns counts for the dashboard metrics cards
+router.get('/completion-status', authenticate, authorize('manager', 'admin'), (req, res) => {
+  const allGoals = Object.values(goalsDB);
 
-// GET: CSV export of achievements
-router.get('/achievements-export', authMiddleware, (req, res) => {
-    try {
-        // For demo, return sample CSV data
-        const csvData = `Employee,Goal,Target,Actual,Score,Status
-Alice Johnson,Increase Revenue,100000,85000,85,On Track
-Alice Johnson,Customer Satisfaction,85,88,100,Completed
-Bob Manager,Process Efficiency,2026-12-31,2026-11-30,100,Completed
-Charlie Admin,Safety Incidents,0,2,0,On Track`;
+  const total     = allGoals.length;
+  const submitted = allGoals.filter(g => ['Submitted', 'Approved', 'Rejected'].includes(g.status)).length;
+  const approved  = allGoals.filter(g => g.status === 'Approved').length;
+  const rejected  = allGoals.filter(g => g.status === 'Rejected').length;
+  const draft     = allGoals.filter(g => g.status === 'Draft').length;
 
-        res.header('Content-Type', 'text/csv');
-        res.header('Content-Disposition', 'attachment; filename=achievements.csv');
-        res.send(csvData);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
+  // "checked-in" = approved goals that have an actual_value submitted
+  const checkin_done = allGoals.filter(g => {
+    const ach = achievementsDB[g.id];
+    return g.status === 'Approved' && ach && ach.actual_value !== undefined && ach.actual_value !== null;
+  }).length;
+
+  // Per-employee breakdown for admin detail view
+  const byEmployee = {};
+  allGoals.forEach(g => {
+    const emp = USERS.find(u => u.id === g.employee_id);
+    const empName = emp ? emp.name : `Employee ${g.employee_id}`;
+    if (!byEmployee[empName]) {
+      byEmployee[empName] = { total: 0, approved: 0, checkin_done: 0 };
     }
+    byEmployee[empName].total += 1;
+    if (g.status === 'Approved') byEmployee[empName].approved += 1;
+    const ach = achievementsDB[g.id];
+    if (g.status === 'Approved' && ach && ach.actual_value !== undefined) {
+      byEmployee[empName].checkin_done += 1;
+    }
+  });
+
+  res.json({
+    metrics: { total, submitted, approved, rejected, draft, checkin_done },
+    by_employee: byEmployee,
+  });
 });
 
-// GET: Completion dashboard metrics
-router.get('/completion-status', authMiddleware, (req, res) => {
-    try {
-        // For demo, return sample metrics
-        const metrics = {
-            success: true,
-            data: {
-                total_goals: 24,
-                submitted: 20,
-                approved: 18,
-                checkin_completed: 15,
-                completion_percentage: Math.round((15 / 24) * 100)
-            }
-        };
+// ─── GET /api/reports/achievements-export ───────────────────────────────────
+// Admin/Manager: Returns CSV file of all goals + achievements
+router.get('/achievements-export', authenticate, authorize('manager', 'admin'), (req, res) => {
+  const allGoals = Object.values(goalsDB);
 
-        res.json(metrics);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
+  const rows = allGoals.map(g => {
+    const emp = USERS.find(u => u.id === g.employee_id);
+    const ach = achievementsDB[g.id] || {};
 
-// POST: Create audit log entry
-router.post('/audit-log', authMiddleware, (req, res) => {
-    try {
-        const { goalId, fieldChanged, oldValue, newValue } = req.body;
+    return {
+      Employee:         emp ? emp.name : g.employee_id,
+      Email:            emp ? emp.email : '',
+      Goal_Title:       g.title,
+      Thrust_Area:      g.thrust_area || '',
+      UoM_Type:         g.uom_type || '',
+      Direction:        g.uom_direction || '',
+      Target:           g.uom_target ?? '',
+      Weightage_Pct:    g.weightage ?? '',
+      Status:           g.status,
+      Actual_Value:     ach.actual_value ?? '',
+      Progress_Score:   ach.progress_score ?? '',
+      Employee_Remarks: ach.employee_remarks || '',
+      Submitted_At:     ach.submitted_at || '',
+    };
+  });
 
-        if (!goalId || !fieldChanged) {
-            return res.status(400).json({ 
-                error: 'Missing required fields: goalId, fieldChanged' 
-            });
-        }
+  // Build CSV manually — no external dependency needed
+  if (rows.length === 0) {
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="atomquest-achievements.csv"');
+    return res.send('No data to export');
+  }
 
-        const auditLog = {
-            id: Date.now(),
-            goal_id: goalId,
-            field_changed: fieldChanged,
-            old_value: oldValue,
-            new_value: newValue,
-            changed_by: req.user.email,
-            changed_at: new Date().toISOString()
-        };
+  const headers = Object.keys(rows[0]);
+  const escape  = val => `"${String(val).replace(/"/g, '""')}"`;
 
-        auditLogsDB[auditLog.id] = auditLog;
+  const csv = [
+    headers.join(','),
+    ...rows.map(row => headers.map(h => escape(row[h])).join(',')),
+  ].join('\r\n');
 
-        res.status(201).json({
-            success: true,
-            data: auditLog
-        });
-    } catch (error) {
-        res.status(400).json({ error: error.message });
-    }
-});
-
-// GET: Audit log for a goal
-router.get('/audit-log/:goalId', adminMiddleware, (req, res) => {
-    try {
-        const { goalId } = req.params;
-
-        // For demo, return sample audit logs
-        const auditLogs = [
-            {
-                goal_id: goalId,
-                field_changed: 'status',
-                old_value: 'Draft',
-                new_value: 'Approved',
-                changed_by: 'bob@acme.com',
-                changed_at: '2026-05-16T10:30:00Z'
-            },
-            {
-                goal_id: goalId,
-                field_changed: 'target',
-                old_value: '100000',
-                new_value: '120000',
-                changed_by: 'alice@acme.com',
-                changed_at: '2026-05-16T09:15:00Z'
-            }
-        ];
-
-        res.json({
-            success: true,
-            data: auditLogs
-        });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// GET: Admin dashboard summary
-router.get('/admin-summary', adminMiddleware, (req, res) => {
-    try {
-        const summary = {
-            success: true,
-            data: {
-                total_employees: 3,
-                total_goals: 24,
-                goals_submitted: 20,
-                goals_approved: 18,
-                goals_with_checkin: 15,
-                average_score: 87.5,
-                teams: [
-                    { manager: 'Bob Manager', employees: 8, goals: 12, approved: 10 },
-                    { manager: 'Another Manager', employees: 6, goals: 12, approved: 8 }
-                ]
-            }
-        };
-
-        res.json(summary);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', 'attachment; filename="atomquest-achievements.csv"');
+  res.send(csv);
 });
 
 module.exports = router;
