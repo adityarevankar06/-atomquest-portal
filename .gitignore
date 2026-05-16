@@ -1,0 +1,46 @@
+# Node modules
+node_modules/
+package-lock.json
+yarn.lock
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build outputs
+build/
+dist/
+out/
+
+# React
+frontend/build/
+frontend/dist/
+
+# Database
+*.db
+*.sqlite
+dump.sql
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Misc
+.cache/
+.temp/
+temp/
