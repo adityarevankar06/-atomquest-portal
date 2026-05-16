@@ -163,23 +163,23 @@ GET    /api/audit-log/:goalId           Per-goal audit trail
 ┌─────────────────────────────────────────────────────────────────┐
 │                        BROWSER (React)                          │
 │                                                                 │
-│  ┌──────────┐  ┌───────────────┐  ┌──────────────────────────┐ │
-│  │  Login   │  │ Employee      │  │ Manager Dashboard        │ │
-│  │  Page    │  │ Dashboard     │  │ - Team Goals             │ │
-│  │          │  │ - My Goals    │  │ - Approve / Reject       │ │
-│  │  (Role   │  │ - Create Goal │  │ - Check-in Review        │ │
-│  │  select) │  │ - Check-in    │  │                          │ │
-│  └──────────┘  └───────────────┘  └──────────────────────────┘ │
+│  ┌──────────┐  ┌───────────────┐  ┌──────────────────────────┐  │
+│  │  Login   │  │ Employee      │  │ Manager Dashboard        │  │
+│  │  Page    │  │ Dashboard     │  │ - Team Goals             │  │
+│  │          │  │ - My Goals    │  │ - Approve / Reject       │  │
+│  │  (Role   │  │ - Create Goal │  │ - Check-in Review        │  │
+│  │  select) │  │ - Check-in    │  │                          │  │
+│  └──────────┘  └───────────────┘  └──────────────────────────┘  │
 │                                                                 │
-│  ┌─────────────────────────────────────────────────────────┐   │
-│  │ Admin Dashboard — Metrics · Audit Trail · CSV Export    │   │
-│  └─────────────────────────────────────────────────────────┘   │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │ Admin Dashboard — Metrics · Audit Trail · CSV Export    │    │
+│  └─────────────────────────────────────────────────────────┘    │
 │                                                                 │
 │               axios (JWT in Authorization header)               │
 └───────────────────────────┬─────────────────────────────────────┘
                             │ HTTPS
 ┌───────────────────────────▼─────────────────────────────────────┐
-│                    NODE.JS BACKEND (Express)                     │
+│                    NODE.JS BACKEND (Express)                    │
 │                                                                 │
 │  Middleware:  CORS · JWT Auth · JSON body parser                │
 │                                                                 │
@@ -194,7 +194,7 @@ GET    /api/audit-log/:goalId           Per-goal audit trail
 └───────────────────────────┬─────────────────────────────────────┘
                             │ pg (node-postgres)
 ┌───────────────────────────▼─────────────────────────────────────┐
-│                     POSTGRESQL DATABASE                          │
+│                     POSTGRESQL DATABASE                         │
 │                                                                 │
 │  employees          goals              quarterly_achievements   │
 │  ─────────          ─────              ──────────────────────   │
