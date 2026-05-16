@@ -1,115 +1,142 @@
 const express = require('express');
-const { v4: uuidv4 } = require('uuid');
-const { authMiddleware } = require('../middleware/auth');
-const { calculateProgressScore } = require('../utils/scoringEngine');
 const router = express.Router();
+const { authenticate, authorize } = require('../middleware/auth');
+const { calculateScore } = require('../utils/scoringEngine');
+const { goalsDB, getGoalById } = require('./goals');
 
-// Mock in-memory database
+// In-memory store: { goalId: { actual_value, employee_remarks, progress_score, manager_comments: [] } }
 const achievementsDB = {};
-const checkInsDB = {};
 
-// POST: Submit quarterly achievement
-router.post('/submit', authMiddleware, (req, res) => {
-    try {
-        const { goalId, quarter, actual_achievement, status } = req.body;
+// ─── GET /achievements ───────────────────────────────────────────────────────
+// Employee: returns own approved goals merged with their achievement data
+router.get('/', authenticate, authorize('employee', 'admin'), (req, res) => {
+  const empId = req.user.id;
 
-        if (!goalId || !quarter || actual_achievement === undefined || !status) {
-            return res.status(400).json({ 
-                error: 'Missing required fields: goalId, quarter, actual_achievement, status' 
-            });
-        }
+  const myGoals = Object.values(goalsDB).filter(
+    g => g.employee_id === empId && g.status === 'Approved'
+  );
 
-        const achievementId = uuidv4();
-        const newAchievement = {
-            id: achievementId,
-            goal_id: goalId,
-            employee_email: req.user.email,
-            quarter: quarter,
-            fiscal_year: new Date().getFullYear(),
-            actual_achievement: parseFloat(actual_achievement),
-            status: status, // Not Started, On Track, Completed
-            progress_score: 0, // Will be calculated when approved
-            created_at: new Date().toISOString()
-        };
+  const result = myGoals.map(g => {
+    const ach = achievementsDB[g.id] || {};
+    return { ...g, ...ach, manager_comments: ach.manager_comments || [] };
+  });
 
-        achievementsDB[achievementId] = newAchievement;
-
-        res.status(201).json({
-            success: true,
-            message: 'Achievement submitted',
-            data: newAchievement
-        });
-    } catch (error) {
-        res.status(400).json({ error: error.message });
-    }
+  res.json(result);
 });
 
-// GET: Get achievements for a goal
-router.get('/:goalId', authMiddleware, (req, res) => {
-    try {
-        const { goalId } = req.params;
-        const achievements = Object.values(achievementsDB).filter(a => a.goal_id === goalId);
-        
-        res.json({
-            success: true,
-            data: achievements
-        });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
+// ─── GET /achievements/team ──────────────────────────────────────────────────
+// Manager: returns all team's approved goals with achievement data
+// MUST come before /:goalId
+router.get('/team', authenticate, authorize('manager', 'admin'), (req, res) => {
+  const { USERS } = require('./auth');
+  const managerId = req.user.id;
+  const manager = USERS.find(u => u.id === managerId);
+
+  if (!manager) return res.status(404).json({ error: 'Manager not found' });
+
+  // Find employees whose manager_email matches this manager
+  const teamEmails = USERS
+    .filter(u => u.role === 'employee' && u.manager_email === manager.email)
+    .map(u => u.id);
+
+  const teamGoals = Object.values(goalsDB).filter(
+    g => teamEmails.includes(g.employee_id) && g.status === 'Approved'
+  );
+
+  const result = teamGoals.map(g => {
+    const ach = achievementsDB[g.id] || {};
+    const emp = USERS.find(u => u.id === g.employee_id);
+    return {
+      ...g,
+      ...ach,
+      manager_comments: ach.manager_comments || [],
+      employee_name: emp?.name,
+      employee_email: emp?.email,
+    };
+  });
+
+  res.json(result);
 });
 
-// POST: Manager conducts check-in and scores achievement
-router.post('/checkin/:achievementId', authMiddleware, (req, res) => {
-    try {
-        const { achievementId } = req.params;
-        const { comment, progress_score } = req.body;
+// ─── POST /achievements/:goalId ──────────────────────────────────────────────
+// Employee: submit or update actual value for a goal
+router.post('/:goalId', authenticate, authorize('employee', 'admin'), (req, res) => {
+  const { goalId } = req.params;
+  const { actual_value, employee_remarks } = req.body;
 
-        if (req.user.role !== 'Manager' && req.user.role !== 'Admin') {
-            return res.status(403).json({ error: 'Manager access required for check-in' });
-        }
+  if (actual_value === undefined || actual_value === null || actual_value === '') {
+    return res.status(400).json({ error: 'actual_value is required' });
+  }
 
-        const achievement = achievementsDB[achievementId];
-        if (!achievement) {
-            return res.status(404).json({ error: 'Achievement not found' });
-        }
+  const goal = getGoalById(goalId);
+  if (!goal) return res.status(404).json({ error: 'Goal not found' });
+  if (goal.employee_id !== req.user.id) {
+    return res.status(403).json({ error: 'This goal does not belong to you' });
+  }
+  if (goal.status !== 'Approved') {
+    return res.status(400).json({ error: 'Can only submit actuals for Approved goals' });
+  }
 
-        const checkInId = uuidv4();
-        const checkIn = {
-            id: checkInId,
-            achievement_id: achievementId,
-            manager_email: req.user.email,
-            comment: comment || '',
-            progress_score: progress_score || achievement.progress_score,
-            created_at: new Date().toISOString()
-        };
+  const progress_score = calculateScore(goal, actual_value);
 
-        checkInsDB[checkInId] = checkIn;
-        achievement.progress_score = checkIn.progress_score;
+  const existing = achievementsDB[goalId] || { manager_comments: [] };
+  achievementsDB[goalId] = {
+    ...existing,
+    actual_value,
+    employee_remarks: employee_remarks || '',
+    progress_score,
+    submitted_at: new Date().toISOString(),
+  };
 
-        res.status(201).json({
-            success: true,
-            message: 'Check-in completed',
-            data: checkIn
-        });
-    } catch (error) {
-        res.status(400).json({ error: error.message });
-    }
+  res.json({
+    message: 'Actual value saved',
+    goal_id: goalId,
+    actual_value,
+    progress_score,
+  });
 });
 
-// GET: Check-ins for an achievement
-router.get('/checkin/:achievementId', authMiddleware, (req, res) => {
-    try {
-        const { achievementId } = req.params;
-        const checkIns = Object.values(checkInsDB).filter(c => c.achievement_id === achievementId);
-        
-        res.json({
-            success: true,
-            data: checkIns
-        });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
+// ─── POST /achievements/checkin/:goalId ─────────────────────────────────────
+// Manager: add a check-in comment to a goal's achievement record
+// MUST come before the /:goalId wildcard — registered later but named route wins
+router.post('/checkin/:goalId', authenticate, authorize('manager', 'admin'), (req, res) => {
+  const { goalId } = req.params;
+  const { comment } = req.body;
+
+  if (!comment || !comment.trim()) {
+    return res.status(400).json({ error: 'comment is required' });
+  }
+
+  const goal = getGoalById(goalId);
+  if (!goal) return res.status(404).json({ error: 'Goal not found' });
+
+  // Verify the goal belongs to this manager's team
+  const { USERS } = require('./auth');
+  const manager = USERS.find(u => u.id === req.user.id);
+  const emp = USERS.find(u => u.id === goal.employee_id);
+
+  if (!manager || !emp || emp.manager_email !== manager.email) {
+    return res.status(403).json({ error: 'This goal does not belong to your team' });
+  }
+
+  if (!achievementsDB[goalId]) {
+    achievementsDB[goalId] = { manager_comments: [] };
+  }
+  if (!achievementsDB[goalId].manager_comments) {
+    achievementsDB[goalId].manager_comments = [];
+  }
+
+  const commentEntry = {
+    manager_id: req.user.id,
+    manager_name: req.user.name,
+    comment: comment.trim(),
+    created_at: new Date().toISOString(),
+  };
+
+  achievementsDB[goalId].manager_comments.push(commentEntry);
+
+  res.json({ message: 'Comment added', comment: commentEntry });
 });
 
 module.exports = router;
+module.exports.achievementsDB = achievementsDB;
