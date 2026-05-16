@@ -35,8 +35,8 @@ router.get('/team', authMiddleware, (req, res) => {
   if (!manager) return res.status(404).json({ error: 'Manager not found' });
 
   // Find employees whose manager_email matches this manager
-  const teamEmails = USERS
-    .filter(u => u.role === 'employee' && u.manager_email === manager.email)
+  const teamEmails = Object.values(USERS)
+    .filter(u => u.role === 'Employee' && u.manager_email === manager.email)
     .map(u => u.id);
 
   const teamGoals = Object.values(goalsDB).filter(
