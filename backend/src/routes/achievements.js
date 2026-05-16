@@ -30,7 +30,7 @@ router.get('/', authMiddleware, (req, res) => {
 router.get('/team', authMiddleware, (req, res) => {
   const { USERS } = require('./auth');
   const managerId = req.user.id;
-  const manager = USERS.find(u => u.id === managerId);
+  const manager = Object.values(USERS).find(u => u.id === managerId);
 
   if (!manager) return res.status(404).json({ error: 'Manager not found' });
 
@@ -45,7 +45,7 @@ router.get('/team', authMiddleware, (req, res) => {
 
   const result = teamGoals.map(g => {
     const ach = achievementsDB[g.id] || {};
-    const emp = USERS.find(u => u.id === g.employee_id);
+    const emp = Object.values(USERS).find(u => u.id === g.employee_id);
     return {
       ...g,
       ...ach,
@@ -112,8 +112,8 @@ router.post('/checkin/:goalId', authMiddleware, (req, res) => {
 
   // Verify the goal belongs to this manager's team
   const { USERS } = require('./auth');
-  const manager = USERS.find(u => u.id === req.user.id);
-  const emp = USERS.find(u => u.id === goal.employee_id);
+  const manager = Object.values(USERS).find(u => u.id === req.user.id);
+  const emp = Object.values(USERS).find(u => u.id === goal.employee_id);
 
   if (!manager || !emp || emp.manager_email !== manager.email) {
     return res.status(403).json({ error: 'This goal does not belong to your team' });
