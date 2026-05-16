@@ -1,6 +1,6 @@
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
-const { authMiddleware, managerMiddleware } = require('../middleware/auth');
+const authMiddleware = require('../middleware/auth');
 const { validateGoal, validateGoalWeightage } = require('../utils/goalValidator');
 const { USERS } = require('./auth');
 
@@ -81,7 +81,7 @@ router.post('/submit', authMiddleware, (req, res) => {
 
 // GET /api/goals/team
 // Manager sees all goals of their direct reports
-router.get('/team', managerMiddleware, (req, res) => {
+router.get('/team', authMiddleware, (req, res) => {
     try {
         const teamGoals = getTeamGoals(req.user.email);
         return res.status(200).json({
@@ -97,7 +97,7 @@ router.get('/team', managerMiddleware, (req, res) => {
 // POST /api/goals/approve/:goalId
 // Manager approves or rejects a Submitted goal
 // Body: { approved: true|false, reason?: string }
-router.post('/approve/:goalId', managerMiddleware, (req, res) => {
+router.post('/approve/:goalId', authMiddleware, (req, res) => {
     try {
         const goal = goalsDB[req.params.goalId];
         if (!goal) return res.status(404).json({ error: 'Goal not found.' });
@@ -164,7 +164,7 @@ router.post('/approve/:goalId', managerMiddleware, (req, res) => {
 
 // GET /api/goals/audit/:goalId
 // Full audit trail for one goal (Manager + Admin)
-router.get('/audit/:goalId', managerMiddleware, (req, res) => {
+router.get('/audit/:goalId', authMiddleware, (req, res) => {
     try {
         const goal = goalsDB[req.params.goalId];
         if (!goal) return res.status(404).json({ error: 'Goal not found.' });
