@@ -11,7 +11,6 @@ function ScorePill({ score }) {
 }
 
 export default function ManagerCheckIn() {
-  const { user } = useContext(AuthContext);
   const [employees, setEmployees] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');

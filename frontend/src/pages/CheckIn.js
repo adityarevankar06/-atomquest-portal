@@ -57,7 +57,6 @@ function ScoreBadge({ score }) {
 }
 
 export default function CheckIn() {
-  const { user } = useContext(AuthContext);
   const [goals, setGoals] = useState([]);
   const [actuals, setActuals] = useState({});
   const [remarks, setRemarks] = useState({});
