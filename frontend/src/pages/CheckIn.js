@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { AuthContext } from '../context/AuthContext';
-import { getMyAchievements, submitAchievement } from '../services/api';
+import { getAchievements, submitAchievement } from '../services/api';
 import './CheckIn.css';
 
 const UOM_LABELS = {
@@ -73,7 +73,7 @@ export default function CheckIn() {
   async function loadGoals() {
     setLoading(true);
     try {
-      const res = await getMyAchievements();
+      const res = await getAchievements();
       const approvedGoals = res.data.filter(g => g.status === 'Approved');
       setGoals(approvedGoals);
 
