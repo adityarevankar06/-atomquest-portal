@@ -36,7 +36,7 @@ export default function Dashboard() {
   const { user, logout } = useContext(AuthContext);
   const navigate = useNavigate();
 
-  const role = user?.role || 'employee';
+  const role = (user?.role || 'employee').toLowerCase();
   const tabs = TABS[role] || TABS.employee;
   const [activeTab, setActiveTab] = useState(getDefaultTab(role));
 
