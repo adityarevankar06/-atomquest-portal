@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { goalsAPI } from '../services/api';
+import { getGoals, createGoal, submitGoals, deleteGoal } from "../services/api";
 import './GoalCreation.css';
 
 const THRUST_AREAS = [
@@ -37,7 +37,7 @@ export default function GoalCreation() {
     const fetchGoals = async () => {
         setFetching(true);
         try {
-            const res = await goalsAPI.getMyGoals();
+            const res = await getGoals();
             setGoals(res.data.data || []);
         } catch (err) {
             setError('Could not load existing goals.');
@@ -104,7 +104,7 @@ export default function GoalCreation() {
                 target:        r.target,
                 weightage:     parseFloat(r.weightage)
             }));
-            await goalsAPI.createGoals(payload);
+            await createGoal(payload);
             setSuccessMsg(`${rows.length} goal(s) saved as Draft.`);
             setRows([{ ...EMPTY_ROW, _id: Date.now() }]);
             fetchGoals();
@@ -128,7 +128,7 @@ export default function GoalCreation() {
         setSubmitting(true);
         setError('');
         try {
-            await goalsAPI.submitGoals();
+            await submitGoals();
             setSuccessMsg('All Draft goals submitted for manager approval! ✅');
             fetchGoals();
         } catch (err) {
@@ -142,7 +142,7 @@ export default function GoalCreation() {
     const handleDelete = async (goalId) => {
         if (!window.confirm('Delete this goal?')) return;
         try {
-            await goalsAPI.deleteGoal(goalId);
+            await deleteGoal(goalId);
             fetchGoals();
         } catch (err) {
             setError(err.response?.data?.error || 'Could not delete goal.');

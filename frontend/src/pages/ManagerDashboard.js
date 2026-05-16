@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { goalsAPI } from '../services/api';
+import { getTeamGoals, approveGoal } from "../services/api";
 import './ManagerDashboard.css';
 
 const STATUS_COLOR = {
@@ -27,7 +27,7 @@ export default function ManagerDashboard() {
         setLoading(true);
         setError('');
         try {
-            const res = await goalsAPI.getTeamGoals();
+            const res = await getTeamGoals();
             setGoals(res.data.data || []);
         } catch (err) {
             setError('Could not load team goals.');
@@ -45,7 +45,7 @@ export default function ManagerDashboard() {
         setError('');
         setSuccessMsg('');
         try {
-            await goalsAPI.approveGoal(goalId, true);
+            await approveGoal(goalId, true);
             setSuccessMsg(`"${goalTitle}" approved and locked.`);
             fetchTeamGoals();
         } catch (err) {
@@ -70,7 +70,7 @@ export default function ManagerDashboard() {
         setError('');
         setSuccessMsg('');
         try {
-            await goalsAPI.approveGoal(rejectModal, false, rejectReason.trim());
+            await approveGoal(rejectModal, false, rejectReason.trim());
             const goal = goals.find(g => g.id === rejectModal);
             setSuccessMsg(`"${goal?.title}" rejected and returned to employee.`);
             setRejectModal(null);
