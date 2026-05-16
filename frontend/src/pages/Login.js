@@ -15,7 +15,7 @@ const Login = () => {
   const [loading, setLoading]             = useState(false);
   const [error, setError]                 = useState('');
 
-  const { setAuth }  = useContext(AuthContext);
+  const { login: setAuth } = useContext(AuthContext);
   const navigate     = useNavigate();
   const location     = useLocation();
 
@@ -40,7 +40,7 @@ const Login = () => {
 
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(user));
-      setAuth({ token, user });
+      setAuth(user, token);
 
       // Return to the page the user was on before the token expired
       navigate(decodeURIComponent(returnTo), { replace: true });
