@@ -44,7 +44,7 @@ export default function AdminDashboard() {
     setLoadingAudit(true);
     try {
       const res = await getAuditLog();
-      setAuditLog(res.data);
+      setAuditLog(res.data.data || []);
     } catch {
       // Audit log may be empty on first load — not a hard error
       setAuditLog([]);
