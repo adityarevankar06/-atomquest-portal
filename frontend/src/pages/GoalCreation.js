@@ -106,7 +106,7 @@ export default function GoalCreation() {
                 weightage:     parseFloat(r.weightage)
             }));
             await createGoal(payload);
-            setSuccessMsg(`${rows.length} goal(s) saved as Draft.`);
+            showToast(`${rows.length} goal(s) saved as Draft.`, 'success');
             setRows([{ ...EMPTY_ROW, _id: Date.now() }]);
             fetchGoals();
         } catch (err) {
@@ -130,7 +130,7 @@ export default function GoalCreation() {
         
         try {
             await submitGoals();
-            setSuccessMsg('All Draft goals submitted for manager approval! ✅');
+            showToast("All Draft goals submitted for manager approval!", 'success');
             fetchGoals();
         } catch (err) {
             showToast(err.response?.data?.error || 'Failed to submit goals.', 'error');
