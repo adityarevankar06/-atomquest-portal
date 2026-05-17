@@ -193,7 +193,8 @@ export default function GoalCreation() {
                             </thead>
                             <tbody>
                                 {goals.map((g, i) => (
-                                    <tr key={g.id}>
+                                    <React.Fragment key={g.id}>
+                                    <tr>
                                         <td className="td-num">{i + 1}</td>
                                         <td className="td-title">{g.title}</td>
                                         <td>{g.thrust_area}</td>
@@ -231,6 +232,7 @@ export default function GoalCreation() {
                                             </td>
                                         </tr>
                                     )}
+                                    </React.Fragment>
                                 ))}
                             </tbody>
                         </table>
