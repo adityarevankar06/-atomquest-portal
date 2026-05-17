@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { getGoals, createGoal, submitGoals, deleteGoal } from "../services/api";
 import './GoalCreation.css';
+import Toast from '../components/Toast';
+import useToast from '../components/useToast';
 
 const THRUST_AREAS = [
     'Revenue Growth',
@@ -26,6 +28,7 @@ export default function GoalCreation() {
     const [loading, setLoading]       = useState(false);
     const [fetching, setFetching]     = useState(true);
     const [error, setError]           = useState('');
+  const { toasts, showToast, removeToast } = useToast();
     const [successMsg, setSuccessMsg] = useState('');
     const [submitting, setSubmitting] = useState(false);
 
@@ -40,7 +43,7 @@ export default function GoalCreation() {
             const res = await getGoals();
             setGoals(res.data.data || []);
         } catch (err) {
-            setError('Could not load existing goals.');
+            showToast('Could not load existing goals.', 'error');
         } finally {
             setFetching(false);
         }
@@ -49,7 +52,7 @@ export default function GoalCreation() {
     // ── Row helpers ─────────────────────────────────────────────
     const addRow = () => {
         if (rows.length + goals.length >= 8) {
-            setError('Maximum 8 goals allowed.');
+            showToast('Maximum 8 goals allowed.', 'warn');
             return;
         }
         setRows(prev => [...prev, { ...EMPTY_ROW, _id: Date.now() }]);
@@ -58,7 +61,7 @@ export default function GoalCreation() {
     const removeRow = (id) => setRows(prev => prev.filter(r => r._id !== id));
 
     const updateRow = (id, field, value) => {
-        setError('');
+        
         setRows(prev => prev.map(r => r._id === id ? { ...r, [field]: value } : r));
     };
 
@@ -73,23 +76,23 @@ export default function GoalCreation() {
 
     // ── Save (create) goals ──────────────────────────────────────
     const handleSave = async () => {
-        setError('');
-        setSuccessMsg('');
+        
+        
 
         // Front-end validation
         for (let i = 0; i < rows.length; i++) {
             const r = rows[i];
-            if (!r.title.trim())      { setError(`Row ${i+1}: Title is required.`);       return; }
-            if (!r.thrust_area)       { setError(`Row ${i+1}: Thrust Area is required.`);  return; }
-            if (!r.uom_type)          { setError(`Row ${i+1}: UoM Type is required.`);     return; }
-            if (r.target === '')      { setError(`Row ${i+1}: Target is required.`);       return; }
+            if (!r.title.trim())      { showToast(`Row ${i+1}: Title is required.`, 'warn');       return; }
+            if (!r.thrust_area)       { showToast(`Row ${i+1}: Thrust Area is required.`, 'warn');  return; }
+            if (!r.uom_type)          { showToast(`Row ${i+1}: UoM Type is required.`, 'warn');     return; }
+            if (r.target === '')      { showToast(`Row ${i+1}: Target is required.`, 'warn');       return; }
             if (!r.weightage || parseFloat(r.weightage) < 10) {
-                setError(`Row ${i+1}: Minimum weightage is 10%.`); return;
+                showToast(`Row ${i+1}: Minimum weightage is 10%.`, 'warn'); return;
             }
         }
 
         if (!weightOk) {
-            setError(`Total weightage is ${totalWeight}%. Must be exactly 100% before saving.`);
+            showToast(`Total weightage is ${totalWeight}%. Must be exactly 100% before saving.`, 'warn');
             return;
         }
 
@@ -109,7 +112,7 @@ export default function GoalCreation() {
             setRows([{ ...EMPTY_ROW, _id: Date.now() }]);
             fetchGoals();
         } catch (err) {
-            setError(err.response?.data?.error || 'Failed to save goals.');
+            showToast(err.response?.data?.error || 'Failed to save goals.', 'error');
         } finally {
             setLoading(false);
         }
@@ -118,21 +121,21 @@ export default function GoalCreation() {
     // ── Submit for approval ──────────────────────────────────────
     const handleSubmit = async () => {
         if (!weightOk) {
-            setError(`Total weightage is ${totalWeight}%. Must be exactly 100% to submit.`);
+            showToast(`Total weightage is ${totalWeight}%. Must be exactly 100% to submit.`, 'warn');
             return;
         }
         if (goals.filter(g => g.status === 'Draft').length === 0) {
-            setError('No Draft goals to submit. Save your goals first.');
+            showToast('No Draft goals to submit. Save your goals first.', 'warn');
             return;
         }
         setSubmitting(true);
-        setError('');
+        
         try {
             await submitGoals();
             setSuccessMsg('All Draft goals submitted for manager approval! ✅');
             fetchGoals();
         } catch (err) {
-            setError(err.response?.data?.error || 'Failed to submit goals.');
+            showToast(err.response?.data?.error || 'Failed to submit goals.', 'error');
         } finally {
             setSubmitting(false);
         }
@@ -145,7 +148,7 @@ export default function GoalCreation() {
             await deleteGoal(goalId);
             fetchGoals();
         } catch (err) {
-            setError(err.response?.data?.error || 'Could not delete goal.');
+            showToast(err.response?.data?.error || 'Could not delete goal.', 'error');
         }
     };
 
@@ -168,8 +171,7 @@ export default function GoalCreation() {
                 </div>
             </div>
 
-            {error      && <div className="gc-alert gc-alert-error">⚠️ {error}</div>}
-            {successMsg && <div className="gc-alert gc-alert-success">✅ {successMsg}</div>}
+            <Toast toasts={toasts} onRemove={removeToast} />
 
             {/* ── Saved Goals Table ─────────────────────────────── */}
             {goals.length > 0 && (

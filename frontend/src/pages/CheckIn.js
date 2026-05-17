@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { getAchievements, submitAchievement } from '../services/api';
 import './CheckIn.css';
+import Toast from '../components/Toast';
+import useToast from '../components/useToast';
 
 const UOM_LABELS = {
   Numeric: { actual: 'Actual Value', target: 'Target Value', placeholder: 'e.g. 85' },
@@ -62,6 +64,7 @@ export default function CheckIn() {
   const [saving, setSaving] = useState({});
   const [saved, setSaved] = useState({});
   const [error, setError] = useState('');
+  const { toasts, showToast, removeToast } = useToast();
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -89,7 +92,7 @@ export default function CheckIn() {
       setActuals(prefill);
       setRemarks(prefillRemarks);
     } catch {
-      setError('Failed to load goals. Make sure the backend is running.');
+      showToast('Failed to load goals.', 'error');
     }
     setLoading(false);
   }
@@ -107,10 +110,10 @@ export default function CheckIn() {
   async function handleSave(goal) {
     const actual = actuals[goal.id];
     if (actual === undefined || actual === '') {
-      setError(`Please enter actual value for: ${goal.title}`);
+      showToast(`Please enter actual value for: ${goal.title}`, 'warn');
       return;
     }
-    setError('');
+    
     setSaving(prev => ({ ...prev, [goal.id]: true }));
     try {
       await submitAchievement(goal.id, {
@@ -120,7 +123,7 @@ export default function CheckIn() {
       setSaved(prev => ({ ...prev, [goal.id]: true }));
       await loadGoals(); // refresh to get server-computed score
     } catch (e) {
-      setError(e.response?.data?.error || 'Save failed. Try again.');
+      showToast(e.response?.data?.error || 'Save failed. Try again.', 'error');
     }
     setSaving(prev => ({ ...prev, [goal.id]: false }));
   }
@@ -166,7 +169,7 @@ export default function CheckIn() {
         )}
       </div>
 
-      {error && <div className="checkin-error">{error}</div>}
+      <Toast toasts={toasts} onRemove={removeToast} />
 
       {goals.length === 0 ? (
         <div className="checkin-empty">

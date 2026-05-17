@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { getTeamGoals, approveGoal } from "../services/api";
 import './ManagerDashboard.css';
+import Toast from '../components/Toast';
+import useToast from '../components/useToast';
 
 const STATUS_COLOR = {
     Draft:     '#f0ad4e',
@@ -13,6 +15,7 @@ export default function ManagerDashboard() {
     const [goals, setGoals]         = useState([]);
     const [loading, setLoading]     = useState(true);
     const [error, setError]         = useState('');
+  const { toasts, showToast, removeToast } = useToast();
     const [successMsg, setSuccessMsg] = useState('');
 
     // Reject modal state
@@ -25,12 +28,12 @@ export default function ManagerDashboard() {
 
     const fetchTeamGoals = useCallback(async () => {
         setLoading(true);
-        setError('');
+        
         try {
             const res = await getTeamGoals();
             setGoals(res.data.data || []);
         } catch (err) {
-            setError('Could not load team goals.');
+            showToast('Could not load team goals.', 'error');
         } finally {
             setLoading(false);
         }
@@ -42,14 +45,14 @@ export default function ManagerDashboard() {
     const handleApprove = async (goalId, goalTitle) => {
         if (!window.confirm(`Approve "${goalTitle}"?`)) return;
         setActionLoading(true);
-        setError('');
-        setSuccessMsg('');
+        
+        
         try {
             await approveGoal(goalId, true);
             setSuccessMsg(`"${goalTitle}" approved and locked.`);
             fetchTeamGoals();
         } catch (err) {
-            setError(err.response?.data?.error || 'Could not approve goal.');
+            showToast(err.response?.data?.error || 'Could not approve goal.', 'error');
         } finally {
             setActionLoading(false);
         }
@@ -63,12 +66,12 @@ export default function ManagerDashboard() {
 
     const handleReject = async () => {
         if (!rejectReason.trim()) {
-            setError('Please enter a rejection reason.');
+            showToast('Please enter a rejection reason.', 'warn');
             return;
         }
         setActionLoading(true);
-        setError('');
-        setSuccessMsg('');
+        
+        
         try {
             await approveGoal(rejectModal, false, rejectReason.trim());
             const goal = goals.find(g => g.id === rejectModal);
@@ -76,7 +79,7 @@ export default function ManagerDashboard() {
             setRejectModal(null);
             fetchTeamGoals();
         } catch (err) {
-            setError(err.response?.data?.error || 'Could not reject goal.');
+            showToast(err.response?.data?.error || 'Could not reject goal.', 'error');
         } finally {
             setActionLoading(false);
         }
@@ -114,8 +117,7 @@ export default function ManagerDashboard() {
                 <button className="btn-refresh" onClick={fetchTeamGoals}>↻ Refresh</button>
             </div>
 
-            {error      && <div className="md-alert md-alert-error">⚠️ {error}</div>}
-            {successMsg && <div className="md-alert md-alert-success">✅ {successMsg}</div>}
+            <Toast toasts={toasts} onRemove={removeToast} />
 
             {/* ── Summary cards ───────────────────────────────── */}
             <div className="md-summary-cards">
@@ -244,7 +246,6 @@ export default function ManagerDashboard() {
                             onChange={e => setRejectReason(e.target.value)}
                             autoFocus
                         />
-                        {error && <div className="md-alert md-alert-error" style={{ marginTop: 10 }}>⚠️ {error}</div>}
                         <div className="modal-actions">
                             <button className="btn-modal-cancel"
                                 onClick={() => setRejectModal(null)}>

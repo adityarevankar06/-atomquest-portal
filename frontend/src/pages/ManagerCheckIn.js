@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { getTeamAchievements, addCheckInComment } from '../services/api';
 import './ManagerCheckIn.css';
+import Toast from '../components/Toast';
+import useToast from '../components/useToast';
 
 function ScorePill({ score }) {
   if (score === null || score === undefined) return <span className="pill-na">No data</span>;
@@ -13,6 +15,7 @@ export default function ManagerCheckIn() {
   const [employees, setEmployees] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const { toasts, showToast, removeToast } = useToast();
   const [openEmployee, setOpenEmployee] = useState(null);
   const [commentGoalId, setCommentGoalId] = useState(null);
   const [commentText, setCommentText] = useState('');
@@ -46,7 +49,7 @@ export default function ManagerCheckIn() {
       const keys = Object.keys(grouped);
       if (keys.length > 0) setOpenEmployee(keys[0]);
     } catch {
-      setError('Failed to load team data. Make sure the backend is running.');
+      showToast('Failed to load team data.', 'error');
     }
     setLoading(false);
   }
@@ -73,7 +76,7 @@ export default function ManagerCheckIn() {
       setCommentText('');
       await loadTeam();
     } catch (e) {
-      setError(e.response?.data?.error || 'Failed to save comment.');
+      showToast(e.response?.data?.error || 'Failed to save comment.', 'error');
     }
     setSubmitting(false);
   }
@@ -103,8 +106,7 @@ export default function ManagerCheckIn() {
         </p>
       </div>
 
-      {error && <div className="mci-error">{error}</div>}
-      {successMsg && <div className="mci-success">{successMsg}</div>}
+      <Toast toasts={toasts} onRemove={removeToast} />
 
       {empList.length === 0 ? (
         <div className="mci-empty">
