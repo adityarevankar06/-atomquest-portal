@@ -60,8 +60,8 @@ api.interceptors.response.use(
 // ─── API calls ───────────────────────────────────────────────────────────────
 
 // Auth
-export const login = (email, role) =>
-  api.post('/api/auth/login', { email, role });
+export const login = (email, password) =>
+  api.post("/api/auth/login", { email, password });
 
 // Goals
 export const getGoals = () =>

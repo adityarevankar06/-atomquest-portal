@@ -5,13 +5,15 @@ import { login } from '../services/api';
 import './Login.css';
 
 const USERS = [
-  { label: 'Alice Johnson', email: 'alice@acme.com', role: 'Employee', avatarClass: 'av-employee', badgeClass: 'badge-employee' },
-  { label: 'Bob Manager',   email: 'bob@acme.com',   role: 'Manager',  avatarClass: 'av-manager',  badgeClass: 'badge-manager'  },
-  { label: 'Charlie Admin', email: 'charlie@acme.com', role: 'Admin',  avatarClass: 'av-admin',    badgeClass: 'badge-admin'    },
+  { label: 'Alice Johnson', email: 'alice@acme.com', role: 'Employee', hint: 'alice123', avatarClass: 'av-employee', badgeClass: 'badge-employee' },
+  { label: 'Bob Manager',   email: 'bob@acme.com',   role: 'Manager',  hint: 'bob123',   avatarClass: 'av-manager',  badgeClass: 'badge-manager'  },
+  { label: 'Charlie Admin', email: 'charlie@acme.com', role: 'Admin',  hint: 'charlie123', avatarClass: 'av-admin',  badgeClass: 'badge-admin'    },
 ];
 
 const Login = () => {
   const [selectedIndex, setSelectedIndex] = useState('');
+  const [password, setPassword]           = useState('');
+  const [showPass, setShowPass]           = useState(false);
   const [loading, setLoading]             = useState(false);
   const [error, setError]                 = useState('');
 
@@ -23,12 +25,19 @@ const Login = () => {
   const reason   = params.get('reason');
   const returnTo = params.get('returnTo') || '/dashboard';
 
+  const handleSelectUser = (i) => {
+    setSelectedIndex(i);
+    setPassword('');
+    setError('');
+  };
+
   const handleLogin = async () => {
     if (selectedIndex === '') { setError('Please select a user.'); return; }
+    if (!password.trim())    { setError('Please enter your password.'); return; }
     setLoading(true); setError('');
-    const { email, role } = USERS[selectedIndex];
+    const { email } = USERS[selectedIndex];
     try {
-      const res = await login(email, role);
+      const res = await login(email, password);
       const { token, user } = res.data;
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(user));
@@ -40,6 +49,8 @@ const Login = () => {
       setLoading(false);
     }
   };
+
+  const selected = selectedIndex !== '' ? USERS[selectedIndex] : null;
 
   return (
     <div className="login-wrapper">
@@ -65,11 +76,8 @@ const Login = () => {
         <div className="login-card-sub">Select your demo account below</div>
 
         {reason === 'expired' && (
-          <div className="login-banner login-banner--warn">
-            Your session has expired. Please log in again.
-          </div>
+          <div className="login-banner login-banner--warn">Your session has expired. Please log in again.</div>
         )}
-
         {error && (
           <div className="login-banner login-banner--error">{error}</div>
         )}
@@ -79,11 +87,9 @@ const Login = () => {
             <div
               key={u.email}
               className={`user-card ${selectedIndex === i ? 'selected' : ''}`}
-              onClick={() => setSelectedIndex(i)}
+              onClick={() => handleSelectUser(i)}
             >
-              <div className={`user-avatar ${u.avatarClass}`}>
-                {u.label.charAt(0)}
-              </div>
+              <div className={`user-avatar ${u.avatarClass}`}>{u.label.charAt(0)}</div>
               <div className="user-card-info">
                 <div className="user-card-name">{u.label}</div>
                 <div className="user-card-email">{u.email}</div>
@@ -93,6 +99,32 @@ const Login = () => {
           ))}
         </div>
 
+        {selected && (
+          <div className="password-section">
+            <div className="password-hint">
+              Demo password: <strong>{selected.hint}</strong>
+            </div>
+            <div className="password-input-wrap">
+              <input
+                type={showPass ? 'text' : 'password'}
+                className="password-input"
+                placeholder="Enter password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleLogin()}
+                autoFocus
+              />
+              <button
+                className="password-toggle"
+                onClick={() => setShowPass(p => !p)}
+                type="button"
+              >
+                {showPass ? '🙈' : '👁'}
+              </button>
+            </div>
+          </div>
+        )}
+
         <button
           className="login-btn"
           onClick={handleLogin}
@@ -100,8 +132,6 @@ const Login = () => {
         >
           {loading ? 'Signing in…' : 'Sign In →'}
         </button>
-
-        <p className="login-note">No password required for demo accounts</p>
       </div>
     </div>
   );
