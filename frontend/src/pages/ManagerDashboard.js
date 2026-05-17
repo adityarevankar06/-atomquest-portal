@@ -35,7 +35,7 @@ export default function ManagerDashboard() {
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [showToast]);
 
     useEffect(() => { fetchTeamGoals(); }, [fetchTeamGoals]);
 

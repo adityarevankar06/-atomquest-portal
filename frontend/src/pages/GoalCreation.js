@@ -33,7 +33,7 @@ export default function GoalCreation() {
     // Load existing goals on mount
     useEffect(() => {
         fetchGoals();
-    }, []);
+    }, [fetchGoals]);
 
     const fetchGoals = async () => {
         setFetching(true);
