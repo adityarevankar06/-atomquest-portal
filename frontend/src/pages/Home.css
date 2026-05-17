@@ -1,0 +1,316 @@
+/* ── Root ────────────────────────────────────────────────────── */
+.home-root {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 32px 24px;
+  font-family: 'DM Sans', sans-serif;
+}
+
+/* ── Greeting ─────────────────────────────────────────────────── */
+.home-greeting {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.home-greeting-avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #fff;
+  font-size: 24px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.35);
+}
+
+.home-greeting-name {
+  font-size: 22px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.home-greeting-role {
+  font-size: 13px;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+/* ── Stats grid ───────────────────────────────────────────────── */
+.home-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+@media (max-width: 700px) {
+  .home-stats-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+.home-stat-card {
+  background: #fff;
+  border-radius: 14px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  border: 1.5px solid #f1f5f9;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.home-stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.10);
+}
+
+.home-stat-icon {
+  font-size: 22px;
+}
+
+.home-stat-value {
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.home-stat-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.home-stat-sub {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+/* ── Card color variants ──────────────────────────────────────── */
+.home-stat-card--blue   { border-top: 3px solid #3b82f6; }
+.home-stat-card--blue   .home-stat-value { color: #1d4ed8; }
+
+.home-stat-card--amber  { border-top: 3px solid #f59e0b; }
+.home-stat-card--amber  .home-stat-value { color: #d97706; }
+
+.home-stat-card--green  { border-top: 3px solid #22c55e; }
+.home-stat-card--green  .home-stat-value { color: #16a34a; }
+
+.home-stat-card--purple { border-top: 3px solid #a855f7; }
+.home-stat-card--purple .home-stat-value { color: #7c3aed; }
+
+.home-stat-card--red    { border-top: 3px solid #f43f5e; }
+.home-stat-card--red    .home-stat-value { color: #e11d48; }
+
+/* ── Alerts ───────────────────────────────────────────────────── */
+.home-alert {
+  border-radius: 12px;
+  padding: 14px 18px;
+  font-size: 14px;
+  margin-bottom: 24px;
+  line-height: 1.5;
+}
+
+.home-alert--warn {
+  background: #fff7ed;
+  border: 1.5px solid #fed7aa;
+  color: #92400e;
+}
+
+.home-alert--action {
+  background: #eff6ff;
+  border: 1.5px solid #bfdbfe;
+  color: #1e40af;
+}
+
+/* ── Section ──────────────────────────────────────────────────── */
+.home-section {
+  background: #fff;
+  border-radius: 14px;
+  padding: 22px 24px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  border: 1.5px solid #f1f5f9;
+  margin-bottom: 20px;
+}
+
+.home-section-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  margin-bottom: 18px;
+  padding-bottom: 12px;
+  border-bottom: 1.5px solid #f1f5f9;
+}
+
+/* ── Progress breakdown ───────────────────────────────────────── */
+.home-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.home-breakdown-row {
+  display: grid;
+  grid-template-columns: 90px 1fr 36px;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  color: #475569;
+}
+
+.home-progress-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.home-progress-track {
+  flex: 1;
+  height: 8px;
+  background: #f1f5f9;
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.home-progress-fill {
+  height: 100%;
+  border-radius: 99px;
+  transition: width 0.6s ease;
+}
+
+.home-progress-fill--amber  { background: #f59e0b; }
+.home-progress-fill--green  { background: #22c55e; }
+.home-progress-fill--red    { background: #f43f5e; }
+.home-progress-fill--purple { background: #a855f7; }
+.home-progress-fill--blue   { background: #3b82f6; }
+
+.home-progress-pct {
+  font-size: 11px;
+  color: #94a3b8;
+  width: 32px;
+  text-align: right;
+}
+
+.home-breakdown-count {
+  font-weight: 700;
+  color: #0f172a;
+  text-align: right;
+}
+
+/* ── Quick actions ────────────────────────────────────────────── */
+.home-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.home-action-card {
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 14px 16px;
+  font-size: 13px;
+  color: #475569;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  line-height: 1.4;
+}
+
+.home-action-card strong { color: #0f172a; }
+
+.home-action-icon { font-size: 18px; flex-shrink: 0; }
+
+/* ── Team list ────────────────────────────────────────────────── */
+.home-team-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.home-team-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: #f8fafc;
+  border-radius: 10px;
+  border: 1.5px solid #f1f5f9;
+}
+
+.home-team-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #0f1729, #1e3a5f);
+  color: #f59e0b;
+  font-size: 15px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.home-team-info { flex: 1; }
+
+.home-team-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.home-team-meta {
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.home-team-badge {
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 99px;
+  border: 1px solid #fde68a;
+}
+
+/* ── Empty state ──────────────────────────────────────────────── */
+.home-empty {
+  text-align: center;
+  padding: 60px 24px;
+  background: #fff;
+  border-radius: 14px;
+  border: 1.5px dashed #e2e8f0;
+}
+
+.home-empty-icon { font-size: 48px; margin-bottom: 16px; }
+
+.home-empty-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 8px;
+}
+
+.home-empty-sub {
+  font-size: 14px;
+  color: #64748b;
+  line-height: 1.6;
+}
+
+/* ── Loading ──────────────────────────────────────────────────── */
+.home-loading {
+  text-align: center;
+  padding: 60px;
+  color: #94a3b8;
+  font-size: 14px;
+}
