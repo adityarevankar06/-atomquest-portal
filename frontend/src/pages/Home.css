@@ -314,3 +314,32 @@
   color: #94a3b8;
   font-size: 14px;
 }
+
+/* ── Clickable action cards ── */
+.home-action-card--clickable {
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.home-action-card--clickable:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(245, 158, 11, 0.18);
+  border-color: #f59e0b;
+}
+
+.home-action-card--clickable:active {
+  transform: translateY(0);
+}
+
+.home-action-arrow {
+  margin-left: auto;
+  font-size: 18px;
+  color: #f59e0b;
+  opacity: 0;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.home-action-card--clickable:hover .home-action-arrow {
+  opacity: 1;
+  transform: translateX(4px);
+}

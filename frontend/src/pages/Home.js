@@ -31,7 +31,7 @@ function ProgressBar({ value, max, color }) {
 }
 
 // ── Employee home ────────────────────────────────────────────────────────────
-function EmployeeHome({ user }) {
+function EmployeeHome({ user, onNavigate }) {
   const [goals, setGoals] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -74,7 +74,7 @@ function EmployeeHome({ user }) {
           </div>
 
           {rejected > 0 && (
-            <div className="home-alert home-alert--warn">
+            <div className="home-alert home-alert--warn home-action-card--clickable" onClick={() => onNavigate?.('goals')} style={{cursor:'pointer'}}>
               ⚠️ <strong>{rejected} goal{rejected > 1 ? 's' : ''} rejected</strong> — go to My Goals to review and resubmit.
             </div>
           )}
@@ -118,13 +118,15 @@ function EmployeeHome({ user }) {
           <div className="home-section">
             <div className="home-section-title">Quick Actions</div>
             <div className="home-actions">
-              <div className="home-action-card">
+              <div className="home-action-card home-action-card--clickable" onClick={() => onNavigate?.('goals')}>
                 <span className="home-action-icon">📋</span>
                 <span>Set or update your goals in <strong>My Goals</strong></span>
+                <span className="home-action-arrow">→</span>
               </div>
-              <div className="home-action-card">
+              <div className="home-action-card home-action-card--clickable" onClick={() => onNavigate?.('checkin')}>
                 <span className="home-action-icon">✏️</span>
                 <span>Submit check-in actuals in <strong>Check-in</strong></span>
+                <span className="home-action-arrow">→</span>
               </div>
             </div>
           </div>
@@ -135,7 +137,7 @@ function EmployeeHome({ user }) {
 }
 
 // ── Manager home ─────────────────────────────────────────────────────────────
-function ManagerHome({ user }) {
+function ManagerHome({ user, onNavigate }) {
   const [goals, setGoals] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -174,7 +176,7 @@ function ManagerHome({ user }) {
           </div>
 
           {pending > 0 && (
-            <div className="home-alert home-alert--action">
+            <div className="home-alert home-alert--action home-action-card--clickable" onClick={() => onNavigate?.('team')} style={{cursor:'pointer'}}>
               🔔 <strong>{pending} goal{pending > 1 ? 's' : ''} waiting for your approval</strong> — visit <strong>Team Goals</strong> to review.
             </div>
           )}
@@ -210,7 +212,7 @@ function ManagerHome({ user }) {
 }
 
 // ── Admin home ───────────────────────────────────────────────────────────────
-function AdminHome({ user }) {
+function AdminHome({ user, onNavigate }) {
   const [metrics, setMetrics] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -271,13 +273,15 @@ function AdminHome({ user }) {
           <div className="home-section">
             <div className="home-section-title">Quick Actions</div>
             <div className="home-actions">
-              <div className="home-action-card">
+              <div className="home-action-card home-action-card--clickable" onClick={() => onNavigate?.('admin')}>
                 <span className="home-action-icon">🛡️</span>
                 <span>View full metrics in <strong>Admin Dashboard</strong></span>
+                <span className="home-action-arrow">→</span>
               </div>
-              <div className="home-action-card">
+              <div className="home-action-card home-action-card--clickable" onClick={() => onNavigate?.('manager-checkin')}>
                 <span className="home-action-icon">📊</span>
                 <span>Review check-ins in <strong>Check-in Review</strong></span>
+                <span className="home-action-arrow">→</span>
               </div>
             </div>
           </div>
@@ -294,9 +298,9 @@ function AdminHome({ user }) {
 }
 
 // ── Main export ──────────────────────────────────────────────────────────────
-export default function Home({ user }) {
+export default function Home({ user, onNavigate }) {
   const role = (user?.role || 'employee').toLowerCase();
-  if (role === 'manager') return <ManagerHome user={user} />;
-  if (role === 'admin')   return <AdminHome   user={user} />;
-  return <EmployeeHome user={user} />;
+  if (role === 'manager') return <ManagerHome user={user} onNavigate={onNavigate} />;
+  if (role === 'admin')   return <AdminHome   user={user} onNavigate={onNavigate} />;
+  return <EmployeeHome user={user} onNavigate={onNavigate} />;
 }

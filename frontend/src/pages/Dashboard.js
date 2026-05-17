@@ -49,7 +49,7 @@ export default function Dashboard() {
 
   function renderTab() {
     switch (activeTab) {
-      case 'home':        return <Home user={user} />;
+      case 'home':        return <Home user={user} onNavigate={setActiveTab} />;
       case 'goals':       return <GoalCreation />;
       case 'team':        return <ManagerDashboard />;
       case 'checkin':     return <CheckIn />;
