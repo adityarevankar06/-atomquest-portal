@@ -47,7 +47,7 @@ export default function ManagerDashboard() {
         
         try {
             await approveGoal(goalId, true);
-            setSuccessMsg(`"${goalTitle}" approved and locked.`);
+            showToast(`"${goalTitle}" approved and locked.`, 'success');
             fetchTeamGoals();
         } catch (err) {
             showToast(err.response?.data?.error || 'Could not approve goal.', 'error');
@@ -73,7 +73,7 @@ export default function ManagerDashboard() {
         try {
             await approveGoal(rejectModal, false, rejectReason.trim());
             const goal = goals.find(g => g.id === rejectModal);
-            setSuccessMsg(`"${goal?.title}" rejected and returned to employee.`);
+            showToast(`"${goal?.title}" rejected and returned to employee.`, 'success');
             setRejectModal(null);
             fetchTeamGoals();
         } catch (err) {

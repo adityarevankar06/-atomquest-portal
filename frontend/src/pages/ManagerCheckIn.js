@@ -55,13 +55,13 @@ export default function ManagerCheckIn() {
   function toggleEmployee(empId) {
     setOpenEmployee(prev => (prev === empId ? null : empId));
     setCommentGoalId(null);
-    setSuccessMsg('');
+    ;
   }
 
   function openComment(goalId) {
     setCommentGoalId(prev => (prev === goalId ? null : goalId));
     setCommentText('');
-    setSuccessMsg('');
+    ;
   }
 
   async function handleSubmitComment(goalId) {
@@ -69,7 +69,7 @@ export default function ManagerCheckIn() {
     setSubmitting(true);
     try {
       await addCheckInComment(goalId, { comment: commentText.trim() });
-      setSuccessMsg(`Comment saved for goal ${goalId}`);
+      showToast(`Comment saved!`, 'success');
       setCommentGoalId(null);
       setCommentText('');
       await loadTeam();
