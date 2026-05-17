@@ -1,142 +1,142 @@
 const express = require('express');
-const router = express.Router();
+const { v4: uuidv4 } = require('uuid');
 const authMiddleware = require('../middleware/auth');
 const { calculateScore } = require('../utils/scoringEngine');
-const { goalsDB, getGoalById } = require('./goals');
+const pool = require('../db');
 
-// In-memory store: { goalId: { actual_value, employee_remarks, progress_score, manager_comments: [] } }
-const achievementsDB = {};
+const router = express.Router();
 
-// ─── GET /achievements ───────────────────────────────────────────────────────
-// Employee: returns own approved goals merged with their achievement data
-router.get('/', authMiddleware, (req, res) => {
-  const empId = req.user.id;
+// ── GET /api/achievements ─────────────────────────────────────────────────────
+// Employee: own approved goals merged with achievement data
+router.get('/', authMiddleware, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT g.*, a.actual_value, a.employee_remarks, a.progress_score, a.submitted_at
+       FROM goals g
+       LEFT JOIN achievements a ON a.goal_id = g.id
+       WHERE g.employee_email = $1 AND g.status = 'Approved'
+       ORDER BY g.created_at DESC`,
+      [req.user.email]
+    );
 
-  const myGoals = Object.values(goalsDB).filter(
-    g => g.employee_id === empId && g.status === 'Approved'
-  );
+    // Attach manager comments
+    const result = [];
+    for (const row of rows) {
+      const { rows: comments } = await pool.query(
+        'SELECT * FROM checkin_comments WHERE goal_id = $1 ORDER BY created_at ASC',
+        [row.id]
+      );
+      result.push({ ...row, manager_comments: comments });
+    }
 
-  const result = myGoals.map(g => {
-    const ach = achievementsDB[g.id] || {};
-    return { ...g, ...ach, manager_comments: ach.manager_comments || [] };
-  });
-
-  res.json(result);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-// ─── GET /achievements/team ──────────────────────────────────────────────────
-// Manager: returns all team's approved goals with achievement data
-// MUST come before /:goalId
-router.get('/team', authMiddleware, (req, res) => {
-  const { USERS } = require('./auth');
-  const managerId = req.user.id;
-  const manager = Object.values(USERS).find(u => u.id === managerId);
+// ── GET /api/achievements/team ────────────────────────────────────────────────
+// Manager: team's approved goals with achievement data
+router.get('/team', authMiddleware, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT g.*, e.name AS employee_name, e.email AS employee_email_ref,
+              a.actual_value, a.employee_remarks, a.progress_score, a.submitted_at
+       FROM goals g
+       JOIN employees e ON e.email = g.employee_email
+       LEFT JOIN achievements a ON a.goal_id = g.id
+       WHERE e.manager_email = $1 AND g.status = 'Approved'
+       ORDER BY g.created_at DESC`,
+      [req.user.email]
+    );
 
-  if (!manager) return res.status(404).json({ error: 'Manager not found' });
+    const result = [];
+    for (const row of rows) {
+      const { rows: comments } = await pool.query(
+        'SELECT * FROM checkin_comments WHERE goal_id = $1 ORDER BY created_at ASC',
+        [row.id]
+      );
+      result.push({ ...row, manager_comments: comments });
+    }
 
-  // Find employees whose manager_email matches this manager
-  const teamEmails = Object.values(USERS)
-    .filter(u => u.role === 'Employee' && u.manager_email === manager.email)
-    .map(u => u.id);
-
-  const teamGoals = Object.values(goalsDB).filter(
-    g => teamEmails.includes(g.employee_id) && g.status === 'Approved'
-  );
-
-  const result = teamGoals.map(g => {
-    const ach = achievementsDB[g.id] || {};
-    const emp = Object.values(USERS).find(u => u.id === g.employee_id);
-    return {
-      ...g,
-      ...ach,
-      manager_comments: ach.manager_comments || [],
-      employee_name: emp?.name,
-      employee_email: emp?.email,
-    };
-  });
-
-  res.json(result);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-// ─── POST /achievements/:goalId ──────────────────────────────────────────────
-// Employee: submit or update actual value for a goal
-router.post('/:goalId', authMiddleware, (req, res) => {
-  const { goalId } = req.params;
-  const { actual_value, employee_remarks } = req.body;
+// ── POST /api/achievements/:goalId ────────────────────────────────────────────
+// Employee: submit or update actual value
+router.post('/:goalId', authMiddleware, async (req, res) => {
+  try {
+    const { goalId } = req.params;
+    const { actual_value, employee_remarks } = req.body;
 
-  if (actual_value === undefined || actual_value === null || actual_value === '') {
-    return res.status(400).json({ error: 'actual_value is required' });
+    if (actual_value === undefined || actual_value === null || actual_value === '') {
+      return res.status(400).json({ error: 'actual_value is required' });
+    }
+
+    const { rows: goalRows } = await pool.query('SELECT * FROM goals WHERE id = $1', [goalId]);
+    if (goalRows.length === 0) return res.status(404).json({ error: 'Goal not found' });
+    const goal = goalRows[0];
+
+    if (goal.employee_email !== req.user.email) {
+      return res.status(403).json({ error: 'This goal does not belong to you' });
+    }
+    if (goal.status !== 'Approved') {
+      return res.status(400).json({ error: 'Can only submit actuals for Approved goals' });
+    }
+
+    const progress_score = calculateScore(goal, actual_value);
+
+    await pool.query(
+      `INSERT INTO achievements (id, goal_id, actual_value, employee_remarks, progress_score, submitted_at)
+       VALUES ($1, $2, $3, $4, $5, NOW())
+       ON CONFLICT (goal_id) DO UPDATE
+         SET actual_value = $3, employee_remarks = $4,
+             progress_score = $5, submitted_at = NOW()`,
+      [uuidv4(), goalId, actual_value, employee_remarks || '', progress_score]
+    );
+
+    res.json({ message: 'Actual value saved', goal_id: goalId, actual_value, progress_score });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-
-  const goal = getGoalById(goalId);
-  if (!goal) return res.status(404).json({ error: 'Goal not found' });
-  if (goal.employee_id !== req.user.id) {
-    return res.status(403).json({ error: 'This goal does not belong to you' });
-  }
-  if (goal.status !== 'Approved') {
-    return res.status(400).json({ error: 'Can only submit actuals for Approved goals' });
-  }
-
-  const progress_score = calculateScore(goal, actual_value);
-
-  const existing = achievementsDB[goalId] || { manager_comments: [] };
-  achievementsDB[goalId] = {
-    ...existing,
-    actual_value,
-    employee_remarks: employee_remarks || '',
-    progress_score,
-    submitted_at: new Date().toISOString(),
-  };
-
-  res.json({
-    message: 'Actual value saved',
-    goal_id: goalId,
-    actual_value,
-    progress_score,
-  });
 });
 
-// ─── POST /achievements/checkin/:goalId ─────────────────────────────────────
-// Manager: add a check-in comment to a goal's achievement record
-// MUST come before the /:goalId wildcard — registered later but named route wins
-router.post('/checkin/:goalId', authMiddleware, (req, res) => {
-  const { goalId } = req.params;
-  const { comment } = req.body;
+// ── POST /api/achievements/checkin/:goalId ────────────────────────────────────
+// Manager: add a check-in comment
+router.post('/checkin/:goalId', authMiddleware, async (req, res) => {
+  try {
+    const { goalId } = req.params;
+    const { comment } = req.body;
 
-  if (!comment || !comment.trim()) {
-    return res.status(400).json({ error: 'comment is required' });
+    if (!comment || !comment.trim()) {
+      return res.status(400).json({ error: 'comment is required' });
+    }
+
+    const { rows: goalRows } = await pool.query('SELECT * FROM goals WHERE id = $1', [goalId]);
+    if (goalRows.length === 0) return res.status(404).json({ error: 'Goal not found' });
+    const goal = goalRows[0];
+
+    // Verify goal belongs to this manager's team
+    const { rows: empRows } = await pool.query(
+      'SELECT * FROM employees WHERE email = $1', [goal.employee_email]
+    );
+    if (empRows.length === 0 || empRows[0].manager_email !== req.user.email) {
+      return res.status(403).json({ error: 'This goal does not belong to your team' });
+    }
+
+    const { rows: inserted } = await pool.query(
+      `INSERT INTO checkin_comments (id, goal_id, manager_id, manager_name, comment)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [uuidv4(), goalId, req.user.id, req.user.name, comment.trim()]
+    );
+
+    res.json({ message: 'Comment added', comment: inserted[0] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-
-  const goal = getGoalById(goalId);
-  if (!goal) return res.status(404).json({ error: 'Goal not found' });
-
-  // Verify the goal belongs to this manager's team
-  const { USERS } = require('./auth');
-  const manager = Object.values(USERS).find(u => u.id === req.user.id);
-  const emp = Object.values(USERS).find(u => u.id === goal.employee_id);
-
-  if (!manager || !emp || emp.manager_email !== manager.email) {
-    return res.status(403).json({ error: 'This goal does not belong to your team' });
-  }
-
-  if (!achievementsDB[goalId]) {
-    achievementsDB[goalId] = { manager_comments: [] };
-  }
-  if (!achievementsDB[goalId].manager_comments) {
-    achievementsDB[goalId].manager_comments = [];
-  }
-
-  const commentEntry = {
-    manager_id: req.user.id,
-    manager_name: req.user.name,
-    comment: comment.trim(),
-    created_at: new Date().toISOString(),
-  };
-
-  achievementsDB[goalId].manager_comments.push(commentEntry);
-
-  res.json({ message: 'Comment added', comment: commentEntry });
 });
 
 module.exports = router;
-module.exports.achievementsDB = achievementsDB;

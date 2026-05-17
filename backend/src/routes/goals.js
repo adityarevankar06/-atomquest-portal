@@ -2,367 +2,332 @@ const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const authMiddleware = require('../middleware/auth');
 const { validateGoal, validateGoalWeightage } = require('../utils/goalValidator');
-const { USERS } = require('./auth');
+const pool = require('../db');
 
 const router = express.Router();
 
-// ---------------------------------------------------------------------------
-// In-memory stores
-// ---------------------------------------------------------------------------
-const goalsDB = {};   // goalId → goal object
-const auditDB = {};   // logId  → audit log entry
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function getEmployeeGoals(email) {
-    return Object.values(goalsDB).filter(g => g.employee_email === email);
+async function getEmployeeGoals(email) {
+  const { rows } = await pool.query(
+    'SELECT * FROM goals WHERE employee_email = $1 ORDER BY created_at DESC',
+    [email]
+  );
+  return rows;
 }
 
-function getTeamGoals(managerEmail) {
-    const teamEmails = Object.values(USERS)
-        .filter(u => u.manager_email === managerEmail)
-        .map(u => u.email);
-    return Object.values(goalsDB).filter(g => teamEmails.includes(g.employee_email));
+async function getTeamGoals(managerEmail) {
+  const { rows } = await pool.query(
+    `SELECT g.* FROM goals g
+     JOIN employees e ON e.email = g.employee_email
+     WHERE e.manager_email = $1
+     ORDER BY g.created_at DESC`,
+    [managerEmail]
+  );
+  return rows;
 }
 
-function audit(goalId, field, oldVal, newVal, byEmail) {
-    auditDB[uuidv4()] = {
-        goal_id:       goalId,
-        field_changed: field,
-        old_value:     oldVal !== undefined && oldVal !== null ? String(oldVal) : null,
-        new_value:     newVal !== undefined && newVal !== null ? String(newVal) : null,
-        changed_by:    byEmail,
-        changed_at:    new Date().toISOString()
-    };
+async function auditLog(goalId, field, oldVal, newVal, byEmail) {
+  await pool.query(
+    `INSERT INTO audit_log (id, goal_id, field_changed, old_value, new_value, changed_by)
+     VALUES ($1, $2, $3, $4, $5, $6)`,
+    [
+      uuidv4(), goalId, field,
+      oldVal !== undefined && oldVal !== null ? String(oldVal) : null,
+      newVal !== undefined && newVal !== null ? String(newVal) : null,
+      byEmail
+    ]
+  );
 }
 
-// ===========================================================================
-// NAMED ROUTES — declared BEFORE /:goalId to avoid wildcard collisions
-// ===========================================================================
-
-// POST /api/goals/submit
-// Employee submits all their Draft goals for manager review (100% total enforced)
-router.post('/submit', authMiddleware, (req, res) => {
-    try {
-        if (req.user.role !== 'Employee') {
-            return res.status(403).json({ error: 'Only Employees can submit goals.' });
-        }
-
-        const myGoals = getEmployeeGoals(req.user.email);
-        const drafts  = myGoals.filter(g => g.status === 'Draft');
-
-        if (drafts.length === 0) {
-            return res.status(400).json({ error: 'No Draft goals found to submit.' });
-        }
-
-        validateGoalWeightage(myGoals, [], 'update');
-
-        const now = new Date().toISOString();
-        drafts.forEach(g => {
-            const old    = g.status;
-            g.status     = 'Submitted';
-            g.updated_at = now;
-            audit(g.id, 'status', old, 'Submitted', req.user.email);
-        });
-
-        console.log(`[GOALS] ${req.user.email} submitted ${drafts.length} goal(s)`);
-
-        return res.status(200).json({
-            success: true,
-            message: `${drafts.length} goal(s) submitted for manager approval.`,
-            data: drafts
-        });
-    } catch (err) {
-        return res.status(400).json({ error: err.message });
+// ── POST /api/goals/submit ────────────────────────────────────────────────────
+router.post('/submit', authMiddleware, async (req, res) => {
+  try {
+    if (req.user.role !== 'Employee') {
+      return res.status(403).json({ error: 'Only Employees can submit goals.' });
     }
+
+    const myGoals = await getEmployeeGoals(req.user.email);
+    const drafts  = myGoals.filter(g => g.status === 'Draft');
+
+    if (drafts.length === 0) {
+      return res.status(400).json({ error: 'No Draft goals found to submit.' });
+    }
+
+    validateGoalWeightage(myGoals, [], 'update');
+
+    const now = new Date().toISOString();
+    for (const g of drafts) {
+      await pool.query(
+        `UPDATE goals SET status = 'Submitted', updated_at = $1 WHERE id = $2`,
+        [now, g.id]
+      );
+      await auditLog(g.id, 'status', g.status, 'Submitted', req.user.email);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `${drafts.length} goal(s) submitted for manager approval.`
+    });
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
 });
 
-// GET /api/goals/team
-// Manager sees all goals of their direct reports
-router.get('/team', authMiddleware, (req, res) => {
-    try {
-        const teamGoals = getTeamGoals(req.user.email);
-        return res.status(200).json({
-            success: true,
-            count: teamGoals.length,
-            data: teamGoals
-        });
-    } catch (err) {
-        return res.status(500).json({ error: err.message });
-    }
+// ── GET /api/goals/team ───────────────────────────────────────────────────────
+router.get('/team', authMiddleware, async (req, res) => {
+  try {
+    const goals = await getTeamGoals(req.user.email);
+    return res.status(200).json({ success: true, count: goals.length, data: goals });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
 });
 
-// POST /api/goals/approve/:goalId
-// Manager approves or rejects a Submitted goal
-// Body: { approved: true|false, reason?: string }
-router.post('/approve/:goalId', authMiddleware, (req, res) => {
-    try {
-        const goal = goalsDB[req.params.goalId];
-        if (!goal) return res.status(404).json({ error: 'Goal not found.' });
+// ── POST /api/goals/approve/:goalId ──────────────────────────────────────────
+router.post('/approve/:goalId', authMiddleware, async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM goals WHERE id = $1', [req.params.goalId]);
+    if (rows.length === 0) return res.status(404).json({ error: 'Goal not found.' });
+    const goal = rows[0];
 
-        if (goal.status !== 'Submitted') {
-            return res.status(400).json({
-                error: `Goal must be in 'Submitted' state to action. Current status: '${goal.status}'.`
-            });
-        }
-
-        const teamGoals = getTeamGoals(req.user.email);
-        if (!teamGoals.find(g => g.id === goal.id)) {
-            return res.status(403).json({ error: 'This goal does not belong to your team.' });
-        }
-
-        const { approved, reason } = req.body;
-
-        if (approved === undefined || approved === null) {
-            return res.status(400).json({ error: "'approved' (true or false) is required." });
-        }
-
-        const oldStatus = goal.status;
-        const now       = new Date().toISOString();
-
-        if (approved === true || approved === 'true') {
-            goal.status      = 'Approved';
-            goal.approved_at = now;
-            goal.approved_by = req.user.email;
-            goal.updated_at  = now;
-
-            audit(goal.id, 'status', oldStatus, 'Approved', req.user.email);
-            console.log(`[GOALS] ${req.user.email} APPROVED goal ${goal.id}`);
-
-            return res.status(200).json({
-                success: true,
-                message: 'Goal approved and locked for editing.',
-                data: goal
-            });
-        } else {
-            if (!reason || String(reason).trim() === '') {
-                return res.status(400).json({ error: "'reason' is required when rejecting a goal." });
-            }
-
-            goal.status           = 'Rejected';
-            goal.rejected_at      = now;
-            goal.rejected_by      = req.user.email;
-            goal.rejection_reason = reason.trim();
-            goal.updated_at       = now;
-
-            audit(goal.id, 'status',           oldStatus,   'Rejected',     req.user.email);
-            audit(goal.id, 'rejection_reason', null,        reason.trim(),  req.user.email);
-            console.log(`[GOALS] ${req.user.email} REJECTED goal ${goal.id} — ${reason}`);
-
-            return res.status(200).json({
-                success: true,
-                message: 'Goal rejected and returned to employee for revision.',
-                data: goal
-            });
-        }
-    } catch (err) {
-        return res.status(500).json({ error: err.message });
+    if (goal.status !== 'Submitted') {
+      return res.status(400).json({
+        error: `Goal must be in 'Submitted' state. Current: '${goal.status}'.`
+      });
     }
+
+    const teamGoals = await getTeamGoals(req.user.email);
+    if (!teamGoals.find(g => g.id === goal.id)) {
+      return res.status(403).json({ error: 'This goal does not belong to your team.' });
+    }
+
+    const { approved, reason } = req.body;
+    if (approved === undefined || approved === null) {
+      return res.status(400).json({ error: "'approved' (true or false) is required." });
+    }
+
+    const now = new Date().toISOString();
+
+    if (approved === true || approved === 'true') {
+      await pool.query(
+        `UPDATE goals SET status='Approved', approved_at=$1, approved_by=$2, updated_at=$1 WHERE id=$3`,
+        [now, req.user.email, goal.id]
+      );
+      await auditLog(goal.id, 'status', 'Submitted', 'Approved', req.user.email);
+
+      const { rows: updated } = await pool.query('SELECT * FROM goals WHERE id = $1', [goal.id]);
+      return res.status(200).json({ success: true, message: 'Goal approved.', data: updated[0] });
+    } else {
+      if (!reason || String(reason).trim() === '') {
+        return res.status(400).json({ error: "'reason' is required when rejecting." });
+      }
+      await pool.query(
+        `UPDATE goals SET status='Rejected', rejected_at=$1, rejected_by=$2,
+         rejection_reason=$3, updated_at=$1 WHERE id=$4`,
+        [now, req.user.email, reason.trim(), goal.id]
+      );
+      await auditLog(goal.id, 'status', 'Submitted', 'Rejected', req.user.email);
+      await auditLog(goal.id, 'rejection_reason', null, reason.trim(), req.user.email);
+
+      const { rows: updated } = await pool.query('SELECT * FROM goals WHERE id = $1', [goal.id]);
+      return res.status(200).json({ success: true, message: 'Goal rejected.', data: updated[0] });
+    }
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
 });
 
-// GET /api/goals/audit/:goalId
-// Full audit trail for one goal (Manager + Admin)
-router.get('/audit/:goalId', authMiddleware, (req, res) => {
-    try {
-        const goal = goalsDB[req.params.goalId];
-        if (!goal) return res.status(404).json({ error: 'Goal not found.' });
+// ── GET /api/goals/audit/:goalId ──────────────────────────────────────────────
+router.get('/audit/:goalId', authMiddleware, async (req, res) => {
+  try {
+    const { rows: goal } = await pool.query('SELECT id FROM goals WHERE id = $1', [req.params.goalId]);
+    if (goal.length === 0) return res.status(404).json({ error: 'Goal not found.' });
 
-        const logs = Object.values(auditDB)
-            .filter(l => l.goal_id === req.params.goalId)
-            .sort((a, b) => new Date(a.changed_at) - new Date(b.changed_at));
-
-        return res.status(200).json({ success: true, goal_id: req.params.goalId, data: logs });
-    } catch (err) {
-        return res.status(500).json({ error: err.message });
-    }
+    const { rows: logs } = await pool.query(
+      'SELECT * FROM audit_log WHERE goal_id = $1 ORDER BY changed_at ASC',
+      [req.params.goalId]
+    );
+    return res.status(200).json({ success: true, goal_id: req.params.goalId, data: logs });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
 });
 
-// ===========================================================================
-// COLLECTION ROUTES
-// ===========================================================================
+// ── GET /api/goals ────────────────────────────────────────────────────────────
+router.get('/', authMiddleware, async (req, res) => {
+  try {
+    const { role, email } = req.user;
+    let goals;
 
-// GET /api/goals
-// Employee → own | Manager → team | Admin → all
-router.get('/', authMiddleware, (req, res) => {
-    try {
-        const { role, email } = req.user;
-        let goals;
-
-        if (role === 'Admin') {
-            goals = Object.values(goalsDB);
-        } else if (role === 'Manager') {
-            goals = getTeamGoals(email);
-        } else {
-            goals = getEmployeeGoals(email);
-        }
-
-        return res.status(200).json({ success: true, count: goals.length, data: goals });
-    } catch (err) {
-        return res.status(500).json({ error: err.message });
+    if (role === 'Admin') {
+      const { rows } = await pool.query('SELECT * FROM goals ORDER BY created_at DESC');
+      goals = rows;
+    } else if (role === 'Manager') {
+      goals = await getTeamGoals(email);
+    } else {
+      goals = await getEmployeeGoals(email);
     }
+
+    return res.status(200).json({ success: true, count: goals.length, data: goals });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
 });
 
-// POST /api/goals
-// Create one or multiple goals (Employee only).
-// Body: single goal object OR array of goal objects.
-// Entire employee goal set must total 100% after creation.
-router.post('/', authMiddleware, (req, res) => {
-    try {
-        if (req.user.role !== 'Employee') {
-            return res.status(403).json({ error: 'Only Employees can create goals.' });
-        }
-
-        const incoming = Array.isArray(req.body) ? req.body : [req.body];
-
-        incoming.forEach((g, i) => {
-            try {
-                validateGoal(g, false);
-            } catch (e) {
-                throw new Error(`Goal ${i + 1}: ${e.message}`);
-            }
-        });
-
-        const existing = getEmployeeGoals(req.user.email);
-        validateGoalWeightage(incoming, existing, 'create');
-
-        const created = [];
-        incoming.forEach(g => {
-            const id  = uuidv4();
-            const now = new Date().toISOString();
-            const goal = {
-                id,
-                employee_email:   req.user.email,
-                employee_name:    req.user.name,
-                title:            g.title.trim(),
-                description:      (g.description || '').trim(),
-                thrust_area:      g.thrust_area,
-                uom_type:         g.uom_type,
-                uom_direction:    g.uom_direction || 'Min',
-                target:           parseFloat(g.target),
-                weightage:        parseFloat(g.weightage),
-                status:           'Draft',
-                created_at:       now,
-                updated_at:       now,
-                approved_at:      null,
-                approved_by:      null,
-                rejected_at:      null,
-                rejected_by:      null,
-                rejection_reason: null
-            };
-            goalsDB[id] = goal;
-            audit(id, 'status', null, 'Draft', req.user.email);
-            created.push(goal);
-        });
-
-        console.log(`[GOALS] ${req.user.email} created ${created.length} goal(s)`);
-
-        return res.status(201).json({
-            success: true,
-            message: `${created.length} goal(s) created successfully.`,
-            data: created
-        });
-    } catch (err) {
-        return res.status(400).json({ error: err.message });
+// ── POST /api/goals ───────────────────────────────────────────────────────────
+router.post('/', authMiddleware, async (req, res) => {
+  try {
+    if (req.user.role !== 'Employee') {
+      return res.status(403).json({ error: 'Only Employees can create goals.' });
     }
+
+    const incoming = Array.isArray(req.body) ? req.body : [req.body];
+
+    incoming.forEach((g, i) => {
+      try { validateGoal(g, false); }
+      catch (e) { throw new Error(`Goal ${i + 1}: ${e.message}`); }
+    });
+
+    const existing = await getEmployeeGoals(req.user.email);
+    validateGoalWeightage(incoming, existing, 'create');
+
+    const created = [];
+    for (const g of incoming) {
+      const id  = uuidv4();
+      const now = new Date().toISOString();
+
+      await pool.query(
+        `INSERT INTO goals
+          (id, employee_email, employee_name, title, description, thrust_area,
+           uom_type, uom_direction, target, weightage, status, created_at, updated_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'Draft',$11,$11)`,
+        [
+          id, req.user.email, req.user.name,
+          g.title.trim(), (g.description || '').trim(),
+          g.thrust_area, g.uom_type,
+          g.uom_direction || 'Min',
+          parseFloat(g.target), parseFloat(g.weightage), now
+        ]
+      );
+
+      await auditLog(id, 'status', null, 'Draft', req.user.email);
+
+      const { rows } = await pool.query('SELECT * FROM goals WHERE id = $1', [id]);
+      created.push(rows[0]);
+    }
+
+    return res.status(201).json({
+      success: true,
+      message: `${created.length} goal(s) created.`,
+      data: created
+    });
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
 });
 
-// ===========================================================================
-// PARAMETERISED ROUTES — after all named routes
-// ===========================================================================
+// ── GET /api/goals/:goalId ────────────────────────────────────────────────────
+router.get('/:goalId', authMiddleware, async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM goals WHERE id = $1', [req.params.goalId]);
+    if (rows.length === 0) return res.status(404).json({ error: 'Goal not found.' });
+    const goal = rows[0];
 
-// GET /api/goals/:goalId
-router.get('/:goalId', authMiddleware, (req, res) => {
-    try {
-        const goal = goalsDB[req.params.goalId];
-        if (!goal) return res.status(404).json({ error: 'Goal not found.' });
-
-        const { role, email } = req.user;
-
-        if (role === 'Employee' && goal.employee_email !== email) {
-            return res.status(403).json({ error: 'Access denied.' });
-        }
-        if (role === 'Manager' && !getTeamGoals(email).find(g => g.id === goal.id)) {
-            return res.status(403).json({ error: 'This goal does not belong to your team.' });
-        }
-
-        return res.status(200).json({ success: true, data: goal });
-    } catch (err) {
-        return res.status(500).json({ error: err.message });
+    const { role, email } = req.user;
+    if (role === 'Employee' && goal.employee_email !== email) {
+      return res.status(403).json({ error: 'Access denied.' });
     }
+    if (role === 'Manager') {
+      const team = await getTeamGoals(email);
+      if (!team.find(g => g.id === goal.id)) {
+        return res.status(403).json({ error: 'This goal does not belong to your team.' });
+      }
+    }
+
+    return res.status(200).json({ success: true, data: goal });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
 });
 
-// PUT /api/goals/:goalId  — partial update, Draft only
-router.put('/:goalId', authMiddleware, (req, res) => {
-    try {
-        const goal = goalsDB[req.params.goalId];
-        if (!goal) return res.status(404).json({ error: 'Goal not found.' });
+// ── PUT /api/goals/:goalId ────────────────────────────────────────────────────
+router.put('/:goalId', authMiddleware, async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM goals WHERE id = $1', [req.params.goalId]);
+    if (rows.length === 0) return res.status(404).json({ error: 'Goal not found.' });
+    const goal = rows[0];
 
-        if (goal.employee_email !== req.user.email) {
-            return res.status(403).json({ error: 'You can only edit your own goals.' });
-        }
-        if (goal.status !== 'Draft') {
-            return res.status(400).json({
-                error: `Goal cannot be edited. Status is '${goal.status}'. Only Draft goals are editable.`
-            });
-        }
-
-        validateGoal(req.body, true);
-
-        if (req.body.weightage !== undefined) {
-            const others       = getEmployeeGoals(req.user.email).filter(g => g.id !== goal.id);
-            const hypothetical = [...others, { ...goal, weightage: parseFloat(req.body.weightage) }];
-            validateGoalWeightage(hypothetical, [], 'update');
-        }
-
-        const fields = ['title', 'description', 'thrust_area', 'uom_type', 'uom_direction', 'target', 'weightage'];
-        fields.forEach(field => {
-            if (req.body[field] !== undefined && String(req.body[field]) !== String(goal[field])) {
-                audit(goal.id, field, goal[field], req.body[field], req.user.email);
-            }
-        });
-
-        fields.forEach(field => {
-            if (req.body[field] !== undefined) {
-                goal[field] = (field === 'target' || field === 'weightage')
-                    ? parseFloat(req.body[field])
-                    : req.body[field];
-            }
-        });
-        goal.updated_at = new Date().toISOString();
-
-        console.log(`[GOALS] ${req.user.email} updated goal ${goal.id}`);
-        return res.status(200).json({ success: true, data: goal });
-    } catch (err) {
-        return res.status(400).json({ error: err.message });
+    if (goal.employee_email !== req.user.email) {
+      return res.status(403).json({ error: 'You can only edit your own goals.' });
     }
+    if (goal.status !== 'Draft') {
+      return res.status(400).json({ error: `Only Draft goals are editable. Status: '${goal.status}'.` });
+    }
+
+    validateGoal(req.body, true);
+
+    const fields = ['title', 'description', 'thrust_area', 'uom_type', 'uom_direction', 'target', 'weightage'];
+    const updates = [];
+    const values  = [];
+    let idx = 1;
+
+    for (const field of fields) {
+      if (req.body[field] !== undefined) {
+        const newVal = (field === 'target' || field === 'weightage')
+          ? parseFloat(req.body[field])
+          : req.body[field];
+
+        if (String(newVal) !== String(goal[field])) {
+          await auditLog(goal.id, field, goal[field], newVal, req.user.email);
+        }
+
+        updates.push(`${field} = $${idx++}`);
+        values.push(newVal);
+      }
+    }
+
+    if (updates.length === 0) {
+      return res.status(200).json({ success: true, data: goal });
+    }
+
+    updates.push(`updated_at = $${idx++}`);
+    values.push(new Date().toISOString());
+    values.push(goal.id);
+
+    await pool.query(
+      `UPDATE goals SET ${updates.join(', ')} WHERE id = $${idx}`,
+      values
+    );
+
+    const { rows: updated } = await pool.query('SELECT * FROM goals WHERE id = $1', [goal.id]);
+    return res.status(200).json({ success: true, data: updated[0] });
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
 });
 
-// DELETE /api/goals/:goalId  — Draft only
-router.delete('/:goalId', authMiddleware, (req, res) => {
-    try {
-        const goal = goalsDB[req.params.goalId];
-        if (!goal) return res.status(404).json({ error: 'Goal not found.' });
+// ── DELETE /api/goals/:goalId ─────────────────────────────────────────────────
+router.delete('/:goalId', authMiddleware, async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM goals WHERE id = $1', [req.params.goalId]);
+    if (rows.length === 0) return res.status(404).json({ error: 'Goal not found.' });
+    const goal = rows[0];
 
-        if (goal.employee_email !== req.user.email) {
-            return res.status(403).json({ error: 'You can only delete your own goals.' });
-        }
-        if (goal.status !== 'Draft') {
-            return res.status(400).json({
-                error: `Goal cannot be deleted. Status is '${goal.status}'. Only Draft goals can be deleted.`
-            });
-        }
-
-        audit(goal.id, 'status', goal.status, 'DELETED', req.user.email);
-        delete goalsDB[goal.id];
-
-        console.log(`[GOALS] ${req.user.email} deleted goal ${req.params.goalId}`);
-        return res.status(200).json({ success: true, message: 'Goal deleted successfully.' });
-    } catch (err) {
-        return res.status(500).json({ error: err.message });
+    if (goal.employee_email !== req.user.email) {
+      return res.status(403).json({ error: 'You can only delete your own goals.' });
     }
+    if (goal.status !== 'Draft') {
+      return res.status(400).json({ error: `Only Draft goals can be deleted. Status: '${goal.status}'.` });
+    }
+
+    await auditLog(goal.id, 'status', goal.status, 'DELETED', req.user.email);
+    await pool.query('DELETE FROM goals WHERE id = $1', [goal.id]);
+
+    return res.status(200).json({ success: true, message: 'Goal deleted.' });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
 });
 
 module.exports = router;
-module.exports.goalsDB = goalsDB;

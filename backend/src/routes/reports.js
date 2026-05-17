@@ -1,93 +1,105 @@
 const express = require('express');
-const router = express.Router();
 const authMiddleware = require('../middleware/auth');
-const { goalsDB } = require('./goals');
-const { achievementsDB } = require('./achievements');
-const { USERS } = require('./auth');
+const pool = require('../db');
 
-// ─── GET /api/reports/completion-status ─────────────────────────────────────
-// Admin/Manager: Returns counts for the dashboard metrics cards
-router.get('/completion-status', authMiddleware, (req, res) => {
-  const allGoals = Object.values(goalsDB);
+const router = express.Router();
 
-  const total     = allGoals.length;
-  const submitted = allGoals.filter(g => ['Submitted', 'Approved', 'Rejected'].includes(g.status)).length;
-  const approved  = allGoals.filter(g => g.status === 'Approved').length;
-  const rejected  = allGoals.filter(g => g.status === 'Rejected').length;
-  const draft     = allGoals.filter(g => g.status === 'Draft').length;
+// ── GET /api/reports/completion-status ───────────────────────────────────────
+router.get('/completion-status', authMiddleware, async (req, res) => {
+  try {
+    const { rows: allGoals } = await pool.query('SELECT * FROM goals');
 
-  // "checked-in" = approved goals that have an actual_value submitted
-  const checkin_done = allGoals.filter(g => {
-    const ach = achievementsDB[g.id];
-    return g.status === 'Approved' && ach && ach.actual_value !== undefined && ach.actual_value !== null;
-  }).length;
+    const total      = allGoals.length;
+    const submitted  = allGoals.filter(g => ['Submitted','Approved','Rejected'].includes(g.status)).length;
+    const approved   = allGoals.filter(g => g.status === 'Approved').length;
+    const rejected   = allGoals.filter(g => g.status === 'Rejected').length;
+    const draft      = allGoals.filter(g => g.status === 'Draft').length;
 
-  // Per-employee breakdown for admin detail view
-  const byEmployee = {};
-  allGoals.forEach(g => {
-    const emp = Object.values(USERS).find(u => u.id === g.employee_id);
-    const empName = emp ? emp.name : `Employee ${g.employee_id}`;
-    if (!byEmployee[empName]) {
-      byEmployee[empName] = { total: 0, approved: 0, checkin_done: 0 };
-    }
-    byEmployee[empName].total += 1;
-    if (g.status === 'Approved') byEmployee[empName].approved += 1;
-    const ach = achievementsDB[g.id];
-    if (g.status === 'Approved' && ach && ach.actual_value !== undefined) {
-      byEmployee[empName].checkin_done += 1;
-    }
-  });
+    // Goals with actual values submitted
+    const { rows: achRows } = await pool.query(
+      `SELECT a.goal_id FROM achievements a
+       JOIN goals g ON g.id = a.goal_id
+       WHERE g.status = 'Approved' AND a.actual_value IS NOT NULL`
+    );
+    const checkin_done = achRows.length;
 
-  res.json({
-    metrics: { total, submitted, approved, rejected, draft, checkin_done },
-    by_employee: byEmployee,
-  });
+    // Per-employee breakdown
+    const { rows: empBreakdown } = await pool.query(
+      `SELECT e.name, e.email,
+              COUNT(g.id) AS total,
+              COUNT(CASE WHEN g.status = 'Approved' THEN 1 END) AS approved,
+              COUNT(CASE WHEN a.actual_value IS NOT NULL THEN 1 END) AS checkin_done
+       FROM employees e
+       LEFT JOIN goals g ON g.employee_email = e.email
+       LEFT JOIN achievements a ON a.goal_id = g.id AND g.status = 'Approved'
+       WHERE e.role = 'Employee'
+       GROUP BY e.name, e.email`
+    );
+
+    const by_employee = {};
+    empBreakdown.forEach(row => {
+      by_employee[row.name] = {
+        total:        parseInt(row.total),
+        approved:     parseInt(row.approved),
+        checkin_done: parseInt(row.checkin_done)
+      };
+    });
+
+    res.json({
+      metrics: { total, submitted, approved, rejected, draft, checkin_done },
+      by_employee
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-// ─── GET /api/reports/achievements-export ───────────────────────────────────
-// Admin/Manager: Returns CSV file of all goals + achievements
-router.get('/achievements-export', authMiddleware, (req, res) => {
-  const allGoals = Object.values(goalsDB);
+// ── GET /api/reports/achievements-export ─────────────────────────────────────
+router.get('/achievements-export', authMiddleware, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT e.name AS employee, e.email,
+              g.title AS goal_title, g.thrust_area, g.uom_type,
+              g.uom_direction, g.target, g.weightage, g.status,
+              a.actual_value, a.progress_score,
+              a.employee_remarks, a.submitted_at
+       FROM goals g
+       JOIN employees e ON e.email = g.employee_email
+       LEFT JOIN achievements a ON a.goal_id = g.id
+       ORDER BY e.name, g.created_at`
+    );
 
-  const rows = allGoals.map(g => {
-    const emp = Object.values(USERS).find(u => u.id === g.employee_id);
-    const ach = achievementsDB[g.id] || {};
+    if (rows.length === 0) {
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="atomquest-achievements.csv"');
+      return res.send('No data to export');
+    }
 
-    return {
-      Employee:         emp ? emp.name : g.employee_id,
-      Email:            emp ? emp.email : '',
-      Goal_Title:       g.title,
-      Thrust_Area:      g.thrust_area || '',
-      UoM_Type:         g.uom_type || '',
-      Direction:        g.uom_direction || '',
-      Target:           g.uom_target ?? '',
-      Weightage_Pct:    g.weightage ?? '',
-      Status:           g.status,
-      Actual_Value:     ach.actual_value ?? '',
-      Progress_Score:   ach.progress_score ?? '',
-      Employee_Remarks: ach.employee_remarks || '',
-      Submitted_At:     ach.submitted_at || '',
-    };
-  });
+    const headers = [
+      'Employee','Email','Goal_Title','Thrust_Area','UoM_Type',
+      'Direction','Target','Weightage_Pct','Status',
+      'Actual_Value','Progress_Score','Employee_Remarks','Submitted_At'
+    ];
 
-  // Build CSV manually — no external dependency needed
-  if (rows.length === 0) {
+    const escape = val => `"${String(val ?? '').replace(/"/g, '""')}"`;
+
+    const csv = [
+      headers.join(','),
+      ...rows.map(r => [
+        escape(r.employee), escape(r.email), escape(r.goal_title),
+        escape(r.thrust_area), escape(r.uom_type), escape(r.uom_direction),
+        escape(r.target), escape(r.weightage), escape(r.status),
+        escape(r.actual_value), escape(r.progress_score),
+        escape(r.employee_remarks), escape(r.submitted_at)
+      ].join(','))
+    ].join('\r\n');
+
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', 'attachment; filename="atomquest-achievements.csv"');
-    return res.send('No data to export');
+    res.send(csv);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-
-  const headers = Object.keys(rows[0]);
-  const escape  = val => `"${String(val).replace(/"/g, '""')}"`;
-
-  const csv = [
-    headers.join(','),
-    ...rows.map(row => headers.map(h => escape(row[h])).join(',')),
-  ].join('\r\n');
-
-  res.setHeader('Content-Type', 'text/csv');
-  res.setHeader('Content-Disposition', 'attachment; filename="atomquest-achievements.csv"');
-  res.send(csv);
 });
 
 module.exports = router;
