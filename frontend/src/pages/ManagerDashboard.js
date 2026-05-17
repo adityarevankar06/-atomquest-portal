@@ -14,9 +14,7 @@ const STATUS_COLOR = {
 export default function ManagerDashboard() {
     const [goals, setGoals]         = useState([]);
     const [loading, setLoading]     = useState(true);
-    const [error, setError]         = useState('');
   const { toasts, showToast, removeToast } = useToast();
-    const [successMsg, setSuccessMsg] = useState('');
 
     // Reject modal state
     const [rejectModal, setRejectModal] = useState(null); // goalId or null

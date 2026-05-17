@@ -14,17 +14,15 @@ function ScorePill({ score }) {
 export default function ManagerCheckIn() {
   const [employees, setEmployees] = useState({});
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const { toasts, showToast, removeToast } = useToast();
   const [openEmployee, setOpenEmployee] = useState(null);
   const [commentGoalId, setCommentGoalId] = useState(null);
   const [commentText, setCommentText] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [successMsg, setSuccessMsg] = useState('');
 
   useEffect(() => {
     loadTeam();
-  }, []);
+  }, [loadTeam]);
 
   async function loadTeam() {
     setLoading(true);

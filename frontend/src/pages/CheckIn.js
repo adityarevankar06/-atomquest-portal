@@ -63,13 +63,12 @@ export default function CheckIn() {
   const [remarks, setRemarks] = useState({});
   const [saving, setSaving] = useState({});
   const [saved, setSaved] = useState({});
-  const [error, setError] = useState('');
   const { toasts, showToast, removeToast } = useToast();
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadGoals();
-  }, []);
+  }, [loadGoals]);
 
   async function loadGoals() {
     setLoading(true);

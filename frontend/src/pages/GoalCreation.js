@@ -27,9 +27,7 @@ export default function GoalCreation() {
     const [rows, setRows]             = useState([{ ...EMPTY_ROW, _id: Date.now() }]); // form rows
     const [loading, setLoading]       = useState(false);
     const [fetching, setFetching]     = useState(true);
-    const [error, setError]           = useState('');
   const { toasts, showToast, removeToast } = useToast();
-    const [successMsg, setSuccessMsg] = useState('');
     const [submitting, setSubmitting] = useState(false);
 
     // Load existing goals on mount
