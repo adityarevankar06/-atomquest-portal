@@ -214,11 +214,23 @@ export default function GoalCreation() {
                                                     title="Delete">🗑</button>
                                             )}
                                             {g.status === 'Rejected' && (
-                                                <span className="rejection-note"
-                                                    title={g.rejection_reason}>⚠ Rejected</span>
+                                                <button className="btn-resubmit" onClick={() => handleDelete(g.id)} title="Delete to resubmit">🗑 Remove</button>
                                             )}
                                         </td>
                                     </tr>
+                                    {g.status === 'Rejected' && g.rejection_reason && (
+                                        <tr className="rejection-reason-row">
+                                            <td colSpan="9">
+                                                <div className="rejection-reason-banner">
+                                                    <span className="rejection-reason-icon">❌</span>
+                                                    <div>
+                                                        <div className="rejection-reason-label">Rejected by manager</div>
+                                                        <div className="rejection-reason-text">{g.rejection_reason}</div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    )}
                                 ))}
                             </tbody>
                         </table>
