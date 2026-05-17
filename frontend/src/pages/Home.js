@@ -278,7 +278,7 @@ function AdminHome({ user, onNavigate }) {
                 <span>View full metrics in <strong>Admin Dashboard</strong></span>
                 <span className="home-action-arrow">→</span>
               </div>
-              <div className="home-action-card home-action-card--clickable" onClick={() => onNavigate?.('manager-checkin')}>
+              <div className="home-action-card home-action-card--clickable" onClick={() => onNavigate?.('teamcheckin')}>
                 <span className="home-action-icon">📊</span>
                 <span>Review check-ins in <strong>Check-in Review</strong></span>
                 <span className="home-action-arrow">→</span>
