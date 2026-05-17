@@ -7,17 +7,21 @@ import CheckIn          from './CheckIn';
 import ManagerCheckIn   from './ManagerCheckIn';
 import AdminDashboard   from './AdminDashboard';
 import './Dashboard.css';
+import Home           from './Home';
 
 const TABS = {
   employee: [
+    { key: 'home',  label: 'Home',            icon: '🏠' },
     { key: 'goals',   label: 'My Goals',        icon: '📋' },
     { key: 'checkin', label: 'Check-in',         icon: '✏️' },
   ],
   manager: [
+    { key: 'home',        label: 'Home',            icon: '🏠' },
     { key: 'team',        label: 'Team Goals',      icon: '👥' },
     { key: 'teamcheckin', label: 'Check-in Review',  icon: '📊' },
   ],
   admin: [
+    { key: 'home',        label: 'Home',            icon: '🏠' },
     { key: 'goals',       label: 'All Goals',        icon: '📋' },
     { key: 'team',        label: 'Team Goals',        icon: '👥' },
     { key: 'checkin',     label: 'Check-in',          icon: '✏️' },
@@ -27,9 +31,7 @@ const TABS = {
 };
 
 function getDefaultTab(role) {
-  if (role === 'manager') return 'team';
-  if (role === 'admin')   return 'admin';
-  return 'goals';
+  return 'home';
 }
 
 export default function Dashboard() {
@@ -47,6 +49,7 @@ export default function Dashboard() {
 
   function renderTab() {
     switch (activeTab) {
+      case 'home':        return <Home user={user} />;
       case 'goals':       return <GoalCreation />;
       case 'team':        return <ManagerDashboard />;
       case 'checkin':     return <CheckIn />;
