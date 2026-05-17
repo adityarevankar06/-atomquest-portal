@@ -82,8 +82,8 @@ export const submitGoals = () =>
 export const getTeamGoals = () =>
   api.get('/api/goals/team');
 
-export const approveGoal = (goalId, approved, comment) =>
-  api.post(`/api/goals/approve/${goalId}`, { approved, comment });
+export const approveGoal = (goalId, approved, reason) =>
+  api.post(`/api/goals/approve/${goalId}`, { approved, reason });
 
 // Achievements
 export const submitAchievement = (data) =>
