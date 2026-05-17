@@ -69,7 +69,7 @@ export default function CheckIn() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     loadGoals();
-  }, [loadGoals]);
+  }, []);
 
   async function loadGoals() {
     setLoading(true);

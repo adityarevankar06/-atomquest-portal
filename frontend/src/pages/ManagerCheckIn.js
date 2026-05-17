@@ -23,7 +23,7 @@ export default function ManagerCheckIn() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     loadTeam();
-  }, [loadTeam]);
+  }, []);
 
   async function loadTeam() {
     setLoading(true);
