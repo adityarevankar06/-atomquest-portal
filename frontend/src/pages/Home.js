@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getGoals, getTeamGoals, getCompletionStatus, getAchievements } from '../services/api';
+import { getGoals, getTeamGoals, getCompletionStatus } from '../services/api';
 import './Home.css';
 
 function StatCard({ icon, label, value, sub, color }) {
@@ -148,7 +148,6 @@ function ManagerHome({ user }) {
 
   const pending  = goals.filter(g => g.status === 'Submitted').length;
   const approved = goals.filter(g => g.status === 'Approved').length;
-  const rejected = goals.filter(g => g.status === 'Rejected').length;
   const total    = goals.length;
 
   const employees = [...new Set(goals.map(g => g.employee_name))];
