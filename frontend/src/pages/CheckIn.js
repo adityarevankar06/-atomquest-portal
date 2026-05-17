@@ -66,6 +66,7 @@ export default function CheckIn() {
   const { toasts, showToast, removeToast } = useToast();
   const [loading, setLoading] = useState(true);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     loadGoals();
   }, [loadGoals]);

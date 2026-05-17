@@ -20,6 +20,7 @@ export default function ManagerCheckIn() {
   const [commentText, setCommentText] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     loadTeam();
   }, [loadTeam]);

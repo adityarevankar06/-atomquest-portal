@@ -33,7 +33,8 @@ export default function GoalCreation() {
     // Load existing goals on mount
     useEffect(() => {
         fetchGoals();
-    }, [fetchGoals]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const fetchGoals = async () => {
         setFetching(true);
